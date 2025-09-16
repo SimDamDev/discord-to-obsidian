@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  discordId     String    @unique
+  username      String
+  avatarUrl     String?
+  accessToken   String?
+  refreshToken  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  channels      MonitoredChannel[]
+  notes         ObsidianNote[]
+  githubConfig  GitHubConfig?
+
+  @@map("users")
+}
+
+model DiscordServer {
+  id        String   @id @default(cuid())
+  discordId String   @unique
+  name      String
+  iconUrl   String?
+  ownerId   String
+  permissions String? // JSON des permissions
+  features   String?  // JSON des fonctionnalités
+  lastCached DateTime @default(now()) // Timestamp du dernier cache
+  createdAt DateTime @default(now())
+
+  channels  MonitoredChannel[]
+  discordChannels DiscordChannel[]
+
+  @@map("discord_servers")
+}
+
+model DiscordChannel {
+  id        String   @id @default(cuid())
+  discordId String   @unique
+  name      String
+  type      Int      // Type de canal (0 = textuel, 2 = vocal, etc.)
+  position  Int?
+  parentId  String?  // ID du canal parent (catégorie)
+  topic     String?
+  nsfw      Boolean  @default(false)
+  serverId  String
+  lastCached DateTime @default(now()) // Timestamp du dernier cache
+  createdAt DateTime @default(now())
+
+  server    DiscordServer @relation(fields: [serverId], references: [id])
+
+  @@map("discord_channels")
+}
+
+model MonitoredChannel {
+  id        String   @id @default(cuid())
+  discordId String
+  name      String
+  serverId  String
+  userId    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  server    DiscordServer @relation(fields: [serverId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+  messages  DiscordMessage[]
+
+  @@map("monitored_channels")
+}
+
+model DiscordMessage {
+  id        String   @id @default(cuid())
+  discordId String   @unique
+  channelId String
+  authorId  String
+  content   String
+  timestamp DateTime
+  hasLinks  Boolean  @default(false)
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  channel   MonitoredChannel @relation(fields: [channelId], references: [id])
+  links     ExtractedLink[]
+  notes     ObsidianNote[]
+
+  @@map("discord_messages")
+}
+
+model ExtractedLink {
+  id                String   @id @default(cuid())
+  messageId         String
+  url               String
+  title             String?
+  description       String?
+  content           String?
+  domain            String?
+  extractionMethod  String?
+  status            String   @default("pending")
+  createdAt         DateTime @default(now())
+
+  message           DiscordMessage @relation(fields: [messageId], references: [id])
+  notes             ObsidianNote[]
+
+  @@map("extracted_links")
+}
+
+model ObsidianNote {
+  id              String   @id @default(cuid())
+  title           String
+  content         String
+  filePath        String
+  messageId       String?
+  linkId          String?
+  tags            String[]
+  githubCommitSha String?
+  createdAt       DateTime @default(now())
+
+  message         DiscordMessage? @relation(fields: [messageId], references: [id])
+  link            ExtractedLink?  @relation(fields: [linkId], references: [id])
+  user            User            @relation(fields: [userId], references: [id])
+  userId          String
+
+  @@map("obsidian_notes")
+}
+
+model GitHubConfig {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  repository   String
+  branch       String   @default("main")
+  accessToken  String
+  vaultPath    String   @default("notes/")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@map("github_configs")
+}
