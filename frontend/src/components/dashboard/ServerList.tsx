@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { DiscordGuild } from '@/types/auth';
 import { useSession } from 'next-auth/react';
 import { ChannelList } from './ChannelList';
+import { UserBotSetup } from './UserBotSetup';
 
 export function ServerList() {
   const { data: session } = useSession();
@@ -15,6 +16,7 @@ export function ServerList() {
   const [error, setError] = useState<string | null>(null);
   const [cacheInfo, setCacheInfo] = useState<{cached: boolean, source?: string, cacheStatus?: any, rateLimitStatus?: any} | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasUserBot, setHasUserBot] = useState<boolean | null>(null);
 
   const fetchServers = async (forceRefresh = false) => {
     try {
@@ -44,8 +46,22 @@ export function ServerList() {
     }
   };
 
+  // Vérifier si l'utilisateur a un bot
+  const checkUserBot = async () => {
+    try {
+      const response = await fetch('/api/user-bot/status');
+      if (response.ok) {
+        const data = await response.json();
+        setHasUserBot(data.hasBot);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification du bot:', error);
+    }
+  };
+
   useEffect(() => {
     if (session) {
+      checkUserBot();
       fetchServers();
     }
   }, [session]);
@@ -72,57 +88,66 @@ export function ServerList() {
     );
   }
 
+  // Si l'utilisateur n'a pas de bot, afficher la configuration
+  if (hasUserBot === false) {
+    return <UserBotSetup onBotCreated={() => checkUserBot()} />;
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Serveurs Discord</CardTitle>
-            <CardDescription>
-              Vos serveurs Discord disponibles pour la surveillance ({servers.length})
-            </CardDescription>
-          </div>
-                 <div className="flex gap-2 items-center">
-                   {cacheInfo && (
-                     <>
-                       <Badge variant={cacheInfo.cached ? "default" : "secondary"}>
-                         {cacheInfo.cached ? `Cache (${cacheInfo.source})` : "API"}
-                       </Badge>
-                       {cacheInfo.rateLimitStatus?.queueLength > 0 && (
-                         <Badge variant="destructive">
-                           Queue: {cacheInfo.rateLimitStatus.queueLength}
+    <div className="space-y-6">
+      <UserBotSetup onBotCreated={() => checkUserBot()} />
+      
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Serveurs Discord</CardTitle>
+              <CardDescription>
+                Vos serveurs Discord disponibles pour la surveillance ({servers.length})
+              </CardDescription>
+            </div>
+                   <div className="flex gap-2 items-center">
+                     {cacheInfo && (
+                       <>
+                         <Badge variant={cacheInfo.cached ? "default" : "secondary"}>
+                           {cacheInfo.cached ? `Cache (${cacheInfo.source})` : "API"}
                          </Badge>
-                       )}
-                     </>
-                   )}
-                   <Button 
-                     onClick={() => fetchServers(true)} 
-                     variant="outline" 
-                     size="sm"
-                     disabled={isRefreshing}
-                   >
-                     <svg className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                     </svg>
-                     {isRefreshing ? 'Actualisation...' : 'Actualiser'}
-                   </Button>
-                 </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {servers.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-500">Aucun serveur trouvé</p>
+                         {cacheInfo.rateLimitStatus?.queueLength > 0 && (
+                           <Badge variant="destructive">
+                             Queue: {cacheInfo.rateLimitStatus.queueLength}
+                           </Badge>
+                         )}
+                       </>
+                     )}
+                     <Button 
+                       onClick={() => fetchServers(true)} 
+                       variant="outline" 
+                       size="sm"
+                       disabled={isRefreshing}
+                     >
+                       <svg className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                       </svg>
+                       {isRefreshing ? 'Actualisation...' : 'Actualiser'}
+                     </Button>
+                   </div>
           </div>
-        ) : (
-          <div className="grid gap-4">
-            {servers.map((server) => (
-              <ServerCard key={server.id} server={server} />
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent>
+          {servers.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500">Aucun serveur trouvé</p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {servers.map((server) => (
+                <ServerCard key={server.id} server={server} />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

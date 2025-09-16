@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import axios from 'axios';
+import UserBotManager from '@/services/UserBotManager';
 
 export async function GET(
   request: NextRequest,
@@ -18,34 +19,49 @@ export async function GET(
       sessionKeys: session ? Object.keys(session) : []
     });
     
-    if (!session?.accessToken) {
+    if (!session?.user?.discordId) {
       return NextResponse.json(
-        { error: 'Non authentifié ou token Discord manquant' },
+        { error: 'Non authentifié' },
         { status: 401 }
       );
     }
 
     const { id: serverId } = await params;
+    const userId = session.user.discordId;
 
-    // Appel direct à l'API Discord pour récupérer les canaux
-    console.log(`🔄 Récupération des canaux depuis l'API Discord pour le serveur ${serverId}...`);
+    // Vérifier que l'utilisateur a un bot configuré
+    const userBotManager = UserBotManager.getInstance();
+    const userBot = await userBotManager.getUserBot(userId);
+    
+    if (!userBot) {
+      return NextResponse.json(
+        { error: 'Aucun bot configuré. Veuillez créer un bot pour accéder aux canaux.' },
+        { status: 403 }
+      );
+    }
+
+    // Vérifier que l'utilisateur a accès à ce serveur
+    const isAuthorized = await userBotManager.isServerAuthorized(userId, serverId);
+    if (!isAuthorized) {
+      return NextResponse.json(
+        { error: 'Accès non autorisé à ce serveur. Veuillez inviter votre bot sur ce serveur.' },
+        { status: 403 }
+      );
+    }
+
+    // Appel à l'API Discord avec le bot de l'utilisateur
+    console.log(`🔄 Récupération des canaux depuis l'API Discord pour le serveur ${serverId} avec le bot de l'utilisateur...`);
     
     try {
-      console.log('🔍 Debug token utilisé:', {
-        tokenPreview: session.accessToken.substring(0, 20) + '...',
-        tokenLength: session.accessToken.length,
+      console.log('🔍 Debug bot utilisé:', {
+        botId: userBot.id,
+        clientId: userBot.clientId,
         serverId: serverId
       });
       
-      // Utiliser le bot token au lieu du token utilisateur OAuth2
-      const botToken = process.env.DISCORD_BOT_TOKEN;
-      if (!botToken) {
-        throw new Error('Bot token Discord non configuré');
-      }
-
       const response = await axios.get(`https://discord.com/api/guilds/${serverId}/channels`, {
         headers: {
-          'Authorization': `Bot ${botToken}`,
+          'Authorization': `Bot ${userBot.token}`,
         },
         timeout: 10000, // 10 secondes de timeout
       });
@@ -61,8 +77,16 @@ export async function GET(
       // Si le token est expiré ou invalide
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         return NextResponse.json(
-          { error: 'Token Discord expiré ou invalide' },
+          { error: 'Bot Discord invalide ou expiré' },
           { status: 401 }
+        );
+      }
+
+      // Si le bot n'a pas accès au serveur
+      if (axios.isAxiosError(error) && error.response?.status === 403) {
+        return NextResponse.json(
+          { error: 'Le bot n\'a pas accès à ce serveur. Vérifiez les permissions.' },
+          { status: 403 }
         );
       }
 
@@ -74,14 +98,6 @@ export async function GET(
   } catch (error) {
     console.error('Erreur lors de la récupération des canaux:', error);
     
-    // Si le token est expiré ou invalide
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      return NextResponse.json(
-        { error: 'Token Discord expiré ou invalide' },
-        { status: 401 }
-      );
-    }
-
     return NextResponse.json(
       { error: 'Erreur lors de la récupération des canaux' },
       { status: 500 }
