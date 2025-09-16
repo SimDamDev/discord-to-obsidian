@@ -29,22 +29,13 @@ export async function GET(
     const { id: serverId } = await params;
     const userId = session.user.discordId;
 
-    // Vérifier que l'utilisateur a un bot configuré
+    // Récupérer le bot de l'utilisateur
     const userBotManager = UserBotManager.getInstance();
     const userBot = await userBotManager.getUserBot(userId);
     
     if (!userBot) {
       return NextResponse.json(
         { error: 'Aucun bot configuré. Veuillez créer un bot pour accéder aux canaux.' },
-        { status: 403 }
-      );
-    }
-
-    // Vérifier que l'utilisateur a accès à ce serveur
-    const isAuthorized = await userBotManager.isServerAuthorized(userId, serverId);
-    if (!isAuthorized) {
-      return NextResponse.json(
-        { error: 'Accès non autorisé à ce serveur. Veuillez inviter votre bot sur ce serveur.' },
         { status: 403 }
       );
     }

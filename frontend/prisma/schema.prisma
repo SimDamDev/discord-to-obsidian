@@ -133,17 +133,19 @@ model ObsidianNote {
 }
 
 model UserBot {
-  id          String   @id @default(cuid())
-  userId      String
-  clientId    String   @unique
-  token       String   @unique
-  name        String
-  avatar      String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(cuid())
+  userId          String
+  clientId        String   @unique
+  token           String   @unique
+  name            String
+  avatar          String?
+  isActive        Boolean  @default(true)
+  userDiscordId   String?  // RGPD: Discord ID de l'utilisateur propriétaire
+  dataIsolation   Boolean  @default(true) // RGPD: Isolation des données
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  user        User             @relation(fields: [userId], references: [id])
+  user            User             @relation(fields: [userId], references: [id])
   authorizedServers AuthorizedServer[]
 
   @@map("user_bots")

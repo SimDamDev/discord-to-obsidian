@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
       permissions: permissions || ['VIEW_CHANNELS', 'READ_MESSAGE_HISTORY']
     };
 
-    const result = await userBotManager.createUserBot(createRequest);
+    // Passer le token d'accès utilisateur pour créer le bot personnel
+    const result = await userBotManager.createUserBot(createRequest, session.accessToken);
 
     return NextResponse.json({
       success: true,

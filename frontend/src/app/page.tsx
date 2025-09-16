@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import Link from 'next/link';
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -10,7 +11,17 @@ export default function Home() {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      router.push('/dashboard');
+      // Vérifier si l'utilisateur a déjà complété l'onboarding
+      const onboardingCompleted = localStorage.getItem('onboarding-completed');
+      if (onboardingCompleted) {
+        // Pour le développement, ne pas aller au dashboard
+        console.log('✅ Onboarding déjà complété (dashboard désactivé en dev)');
+        // router.push('/dashboard');
+      } else {
+        // Ne pas rediriger automatiquement - laisser l'utilisateur cliquer sur "Commencer"
+        console.log('👤 Utilisateur connecté, en attente du clic sur "Commencer"');
+        // router.push('/onboarding');
+      }
     }
   }, [status, router]);
 
@@ -38,12 +49,32 @@ export default function Home() {
           <p className="text-lg text-gray-600 mb-8">
             Automatisez la création de notes à partir de vos messages Discord
           </p>
-          <button 
-            onClick={() => router.push('/auth/signin')}
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-          >
-            Commencer
-          </button>
+          
+          {status === 'authenticated' ? (
+            <div>
+              <p className="text-green-600 mb-4">
+                ✅ Connecté en tant que {session?.user?.name}
+              </p>
+              <button 
+                onClick={() => router.push('/onboarding')}
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+              >
+                Commencer l'onboarding
+              </button>
+            </div>
+          ) : (
+            <div>
+              <p className="text-gray-500 mb-4">
+                Connectez-vous avec Discord pour commencer
+              </p>
+              <button 
+                onClick={() => router.push('/onboarding')}
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+              >
+                Commencer
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -95,6 +126,21 @@ export default function Home() {
             Synchronisez avec votre vault GitHub
           </p>
         </div>
+      </div>
+
+      {/* Liens utiles */}
+      <div className="text-center mt-8 space-x-6">
+        <Link href="/privacy" className="text-sm text-gray-500 hover:text-gray-700 underline">
+          🔒 Politique de Confidentialité
+        </Link>
+        <Link href="/developer" className="text-sm text-gray-500 hover:text-gray-700 underline">
+          👨‍💻 Dashboard Développeur
+        </Link>
+        {status === 'authenticated' && (
+          <Link href="/data-management" className="text-sm text-gray-500 hover:text-gray-700 underline">
+            📊 Gestion de mes données
+          </Link>
+        )}
       </div>
     </main>
   )

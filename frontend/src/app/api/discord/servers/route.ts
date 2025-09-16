@@ -5,6 +5,7 @@ import axios from 'axios';
 import DiscordCacheService from '@/services/DiscordCacheService';
 import DiscordRateLimitService from '@/services/DiscordRateLimitService';
 import PrismaDatabaseService from '@/services/PrismaDatabaseService';
+import { UserBotManager } from '@/services/UserBotManager';
 
 export async function GET(request: NextRequest) {
   try {
@@ -104,22 +105,59 @@ export async function GET(request: NextRequest) {
         rateLimitService.updateRateLimit(endpoint, response.headers);
       }
 
-      const servers = response.data;
-      console.log(`✅ ${servers.length} serveurs récupérés depuis Discord`);
+      const allServers = response.data;
+      console.log(`✅ ${allServers.length} serveurs récupérés depuis Discord`);
+
+      // Filtrer les serveurs où le bot est présent et où l'utilisateur a des permissions
+      const userBotManager = UserBotManager.getInstance();
+      const userBot = await userBotManager.getUserBot(userId);
+      
+      if (!userBot) {
+        console.log('❌ Aucun bot configuré pour l\'utilisateur');
+        return NextResponse.json({
+          guilds: [],
+          cached: false,
+          source: 'api',
+          message: 'Aucun bot configuré. Veuillez d\'abord créer un bot.'
+        });
+      }
+
+      // Filtrer les serveurs où le bot est présent
+      const filteredServers = [];
+      for (const server of allServers) {
+        try {
+          // Vérifier si le bot est présent sur ce serveur
+          const botResponse = await axios.get(`https://discord.com/api/guilds/${server.id}`, {
+            headers: {
+              'Authorization': `Bot ${userBot.token}`,
+            },
+            timeout: 5000,
+          });
+          
+          // Si le bot a accès au serveur, l'ajouter à la liste
+          filteredServers.push(server);
+          console.log(`✅ Bot présent sur le serveur: ${server.name}`);
+        } catch (error) {
+          // Le bot n'est pas présent sur ce serveur ou n'a pas accès
+          console.log(`❌ Bot non présent sur le serveur: ${server.name}`);
+        }
+      }
+
+      console.log(`🔍 ${filteredServers.length} serveurs filtrés (bot présent) sur ${allServers.length} serveurs total`);
 
       // Stocker en base de données
       try {
-        await dbService.storeServers(userId, servers);
-        console.log(`💾 Serveurs stockés en base de données`);
+        await dbService.storeServers(userId, filteredServers);
+        console.log(`💾 Serveurs filtrés stockés en base de données`);
       } catch (dbError) {
         console.error('Erreur lors du stockage en DB:', dbError);
       }
 
       // Mettre en cache mémoire (15 minutes)
-      cacheService.set(cacheKey, servers, 15 * 60 * 1000);
+      cacheService.set(cacheKey, filteredServers, 15 * 60 * 1000);
 
       return NextResponse.json({ 
-        guilds: servers,
+        guilds: filteredServers,
         cached: false,
         source: 'api',
         rateLimitStatus: rateLimitService.getQueueStatus(),

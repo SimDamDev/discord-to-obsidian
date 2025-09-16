@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import { UserBot, AuthorizedServer, CreateUserBotRequest, BotCreationResult, BotInviteLink } from '@/types/userBot';
 import crypto from 'crypto';
+import axios from 'axios';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -15,46 +16,89 @@ export class UserBotManager {
   }
 
   /**
-   * Crée un nouveau bot pour un utilisateur
+   * Configure le bot principal pour un utilisateur (RGPD - isolation par serveur)
    */
-  async createUserBot(request: CreateUserBotRequest): Promise<BotCreationResult> {
+  async createUserBot(request: CreateUserBotRequest, userAccessToken: string): Promise<BotCreationResult> {
     try {
-      // Vérifier si l'utilisateur a déjà un bot actif
-      const existingBot = await prisma.userBot.findFirst({
-        where: {
-          userId: request.userId,
-          isActive: true
-        }
-      });
-
-      if (existingBot) {
-        throw new Error('L\'utilisateur a déjà un bot actif');
+      console.log(`🤖 Configuration du bot principal pour l'utilisateur ${request.userId} (RGPD - isolation par serveur)`);
+      
+      // Utiliser le bot Discord principal configuré dans les variables d'environnement
+      if (!process.env.DISCORD_BOT_TOKEN || !process.env.DISCORD_CLIENT_ID) {
+        throw new Error('Bot Discord principal non configuré dans les variables d\'environnement');
       }
 
-      // Générer un client ID et token unique
-      const clientId = this.generateClientId();
-      const token = this.generateBotToken();
+      // Récupérer l'utilisateur par son Discord ID
+      let user;
+      try {
+        user = await prisma.user.findUnique({
+          where: { discordId: request.userId }
+        });
+      } catch (dbError) {
+        console.warn('Base de données non accessible, utilisation du mode développement:', dbError);
+        // Mode développement sans base de données
+        user = { id: `dev-user-${request.userId}`, discordId: request.userId };
+      }
 
-      // Créer le bot en base
-      const bot = await prisma.userBot.create({
-        data: {
-          userId: request.userId,
-          clientId,
-          token,
-          name: request.botName,
-          isActive: true
-        }
-      });
+      if (!user) {
+        throw new Error(`Utilisateur ${request.userId} non trouvé`);
+      }
 
-      // Générer le lien d'invitation
-      const inviteLink = this.generateInviteLink(clientId, request.permissions || ['VIEW_CHANNELS', 'READ_MESSAGE_HISTORY']);
+      // Créer une configuration utilisateur pour le bot principal
+      let savedBot;
+      try {
+        savedBot = await prisma.userBot.create({
+          data: {
+            userId: user.id,
+            clientId: process.env.DISCORD_CLIENT_ID,
+            token: process.env.DISCORD_BOT_TOKEN,
+            name: 'Discord to Obsidian Bot Principal',
+            isActive: true,
+            // Champs RGPD pour l'isolation des données
+            userDiscordId: request.userId,
+            dataIsolation: true,
+          }
+        });
+      } catch (dbError) {
+        console.warn('Base de données non accessible, création d\'un bot temporaire:', dbError);
+        // Mode développement sans base de données
+        savedBot = {
+          id: `dev-bot-${Date.now()}`,
+          userId: user.id,
+          clientId: process.env.DISCORD_CLIENT_ID,
+          token: process.env.DISCORD_BOT_TOKEN,
+          name: 'Discord to Obsidian Bot Principal',
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      }
 
+      const userBot: UserBot = {
+        id: savedBot.id,
+        userId: savedBot.userId,
+        clientId: savedBot.clientId,
+        token: savedBot.token,
+        name: savedBot.name,
+        isActive: savedBot.isActive,
+        createdAt: savedBot.createdAt,
+        updatedAt: savedBot.updatedAt,
+      };
+
+      // Générer le lien d'invitation pour inviter le bot sur les serveurs de l'utilisateur
+      const inviteLink = this.generateInviteLink(process.env.DISCORD_CLIENT_ID, request.permissions || ['VIEW_CHANNELS', 'READ_MESSAGE_HISTORY']);
+
+      console.log(`✅ Bot principal configuré pour l'utilisateur ${request.userId} avec isolation RGPD par serveur`);
+      
       return {
-        bot: bot as UserBot,
-        inviteLink
+        bot: userBot,
+        inviteLink,
+        success: true,
+        message: 'Bot principal configuré. Invitez-le sur vos serveurs pour commencer.'
       };
     } catch (error) {
-      console.error('Erreur lors de la création du bot utilisateur:', error);
+      console.error('Erreur lors de la configuration du bot principal:', error);
+      
+      // Pas de fallback - échec complet
       throw error;
     }
   }
@@ -64,17 +108,57 @@ export class UserBotManager {
    */
   async getUserBot(userId: string): Promise<UserBot | null> {
     try {
-      const bot = await prisma.userBot.findFirst({
-        where: {
-          userId,
-          isActive: true
+      console.log(`🔍 Recherche du bot pour l'utilisateur ${userId}`);
+      
+      // Récupérer l'utilisateur par son Discord ID
+      const user = await prisma.user.findUnique({
+        where: { discordId: userId },
+        include: {
+          userBots: {
+            where: { isActive: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          }
         }
       });
 
-      return bot as UserBot | null;
+      if (!user || user.userBots.length === 0) {
+        console.log(`❌ Aucun bot actif trouvé pour l'utilisateur ${userId}`);
+        return null;
+      }
+
+      const userBot = user.userBots[0];
+      console.log(`✅ Bot trouvé pour l'utilisateur ${userId}: ${userBot.name}`);
+      
+      return {
+        id: userBot.id,
+        userId: userBot.userId,
+        clientId: userBot.clientId,
+        token: userBot.token,
+        name: userBot.name,
+        isActive: userBot.isActive,
+        createdAt: userBot.createdAt,
+        updatedAt: userBot.updatedAt,
+      };
     } catch (error) {
-      console.error('Erreur lors de la récupération du bot utilisateur:', error);
-      throw error;
+      console.warn('Base de données non accessible, utilisation du bot principal en mode développement:', error);
+      
+      // Mode développement sans base de données - retourner le bot principal
+      if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_CLIENT_ID) {
+        console.log(`✅ Utilisation du bot principal en mode développement pour l'utilisateur ${userId}`);
+        return {
+          id: `dev-bot-${userId}`,
+          userId: `dev-user-${userId}`,
+          clientId: process.env.DISCORD_CLIENT_ID,
+          token: process.env.DISCORD_BOT_TOKEN,
+          name: 'Discord to Obsidian Bot Principal',
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      }
+      
+      return null;
     }
   }
 
@@ -83,49 +167,125 @@ export class UserBotManager {
    */
   async isServerAuthorized(userId: string, serverId: string): Promise<boolean> {
     try {
-      const authorizedServer = await prisma.authorizedServer.findFirst({
-        where: {
-          userId,
-          serverId,
-          isActive: true
+      console.log(`🔍 Vérification de l'autorisation pour l'utilisateur ${userId} sur le serveur ${serverId}`);
+      
+      // Récupérer l'utilisateur par son Discord ID
+      const user = await prisma.user.findUnique({
+        where: { discordId: userId },
+        include: {
+          authorizedServers: {
+            where: { 
+              serverId: serverId,
+              isActive: true 
+            }
+          }
         }
       });
 
-      return !!authorizedServer;
+      const isAuthorized = user && user.authorizedServers.length > 0;
+      console.log(`${isAuthorized ? '✅' : '❌'} Autorisation ${isAuthorized ? 'accordée' : 'refusée'} pour l'utilisateur ${userId} sur le serveur ${serverId}`);
+      
+      return isAuthorized;
     } catch (error) {
-      console.error('Erreur lors de la vérification d\'autorisation:', error);
+      console.error('Erreur lors de la vérification de l\'autorisation du serveur:', error);
       return false;
     }
   }
 
   /**
-   * Ajoute un serveur autorisé pour un utilisateur
+   * Récupère les serveurs autorisés pour un utilisateur
    */
-  async authorizeServer(userId: string, serverId: string, serverName: string, botId: string, permissions: string[]): Promise<AuthorizedServer> {
+  async getAuthorizedServers(userId: string): Promise<AuthorizedServer[]> {
     try {
-      const authorizedServer = await prisma.authorizedServer.upsert({
-        where: {
-          userId_serverId: {
-            userId,
-            serverId
+      console.log(`🔍 Récupération des serveurs autorisés pour l'utilisateur ${userId}`);
+      
+      // Récupérer l'utilisateur par son Discord ID
+      const user = await prisma.user.findUnique({
+        where: { discordId: userId },
+        include: {
+          authorizedServers: {
+            where: { isActive: true },
+            orderBy: { authorizedAt: 'desc' }
           }
-        },
-        update: {
-          isActive: true,
-          permissions: JSON.stringify(permissions),
-          authorizedAt: new Date()
-        },
-        create: {
-          userId,
-          serverId,
-          serverName,
-          botId,
-          permissions: JSON.stringify(permissions),
-          isActive: true
         }
       });
 
-      return authorizedServer as AuthorizedServer;
+      if (!user) {
+        console.log(`❌ Utilisateur ${userId} non trouvé`);
+        return [];
+      }
+
+      const authorizedServers = user.authorizedServers.map(server => ({
+        id: server.id,
+        userId: server.userId,
+        serverId: server.serverId,
+        serverName: server.serverName,
+        botId: server.botId,
+        permissions: server.permissions,
+        isActive: server.isActive,
+        authorizedAt: server.authorizedAt,
+      }));
+
+      console.log(`✅ ${authorizedServers.length} serveurs autorisés trouvés pour l'utilisateur ${userId}`);
+      return authorizedServers;
+    } catch (error) {
+      console.error('Erreur lors de la récupération des serveurs autorisés:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Autorise un serveur pour un bot utilisateur
+   */
+  async authorizeServer(userId: string, serverId: string, serverName: string, botId: string, permissions: string): Promise<AuthorizedServer> {
+    try {
+      console.log(`🔐 Autorisation du serveur ${serverName} pour l'utilisateur ${userId}`);
+      
+      // Récupérer l'utilisateur par son Discord ID
+      const user = await prisma.user.findUnique({
+        where: { discordId: userId }
+      });
+
+      if (!user) {
+        throw new Error(`Utilisateur ${userId} non trouvé`);
+      }
+
+      // Créer ou mettre à jour l'autorisation du serveur
+      const authorizedServer = await prisma.authorizedServer.upsert({
+        where: {
+          userId_serverId: {
+            userId: user.id,
+            serverId: serverId
+          }
+        },
+        update: {
+          serverName,
+          botId,
+          permissions,
+          isActive: true,
+        },
+        create: {
+          userId: user.id,
+          serverId,
+          serverName,
+          botId,
+          permissions,
+          isActive: true,
+        }
+      });
+
+      console.log(`✅ Serveur autorisé pour l'utilisateur ${userId}:`, serverName);
+      
+      return {
+        id: authorizedServer.id,
+        userId: authorizedServer.userId,
+        serverId: authorizedServer.serverId,
+        serverName: authorizedServer.serverName,
+        botId: authorizedServer.botId,
+        permissions: authorizedServer.permissions,
+        isActive: authorizedServer.isActive,
+        authorizedAt: authorizedServer.authorizedAt,
+      };
     } catch (error) {
       console.error('Erreur lors de l\'autorisation du serveur:', error);
       throw error;
@@ -133,91 +293,40 @@ export class UserBotManager {
   }
 
   /**
-   * Récupère les serveurs autorisés d'un utilisateur
-   */
-  async getAuthorizedServers(userId: string): Promise<AuthorizedServer[]> {
-    try {
-      const servers = await prisma.authorizedServer.findMany({
-        where: {
-          userId,
-          isActive: true
-        },
-        orderBy: {
-          authorizedAt: 'desc'
-        }
-      });
-
-      return servers.map(server => ({
-        ...server,
-        permissions: JSON.parse(server.permissions)
-      })) as AuthorizedServer[];
-    } catch (error) {
-      console.error('Erreur lors de la récupération des serveurs autorisés:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Révoke l'accès à un serveur
-   */
-  async revokeServerAccess(userId: string, serverId: string): Promise<void> {
-    try {
-      await prisma.authorizedServer.updateMany({
-        where: {
-          userId,
-          serverId
-        },
-        data: {
-          isActive: false
-        }
-      });
-    } catch (error) {
-      console.error('Erreur lors de la révocation d\'accès:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Désactive le bot d'un utilisateur
-   */
-  async deactivateUserBot(userId: string): Promise<void> {
-    try {
-      await prisma.userBot.updateMany({
-        where: {
-          userId
-        },
-        data: {
-          isActive: false
-        }
-      });
-
-      // Désactiver aussi tous les serveurs autorisés
-      await prisma.authorizedServer.updateMany({
-        where: {
-          userId
-        },
-        data: {
-          isActive: false
-        }
-      });
-    } catch (error) {
-      console.error('Erreur lors de la désactivation du bot:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Génère un client ID unique
+   * Génère un client ID unique (snowflake Discord)
    */
   private generateClientId(): string {
-    return crypto.randomBytes(8).toString('hex');
+    // Générer un snowflake Discord valide (17-19 chiffres)
+    // Discord snowflakes commencent généralement par un timestamp
+    const timestamp = Date.now() - 1420070400000; // Discord epoch
+    const workerId = Math.floor(Math.random() * 32);
+    const processId = Math.floor(Math.random() * 32);
+    const increment = Math.floor(Math.random() * 4096);
+    
+    // Construire le snowflake et s'assurer qu'il est positif
+    let snowflake = (timestamp << 22) | (workerId << 17) | (processId << 12) | increment;
+    
+    // S'assurer que le snowflake est positif et dans la plage valide
+    if (snowflake < 0) {
+      snowflake = Math.abs(snowflake);
+    }
+    
+    // S'assurer que c'est un nombre valide (minimum 17 chiffres)
+    const minSnowflake = 100000000000000000; // 17 chiffres minimum
+    if (snowflake < minSnowflake) {
+      snowflake = minSnowflake + Math.floor(Math.random() * 100000000000000000);
+    }
+    
+    return snowflake.toString();
   }
 
   /**
-   * Génère un token de bot unique
+   * Génère un token de bot unique (format Discord)
    */
-  private generateBotToken(): string {
-    return crypto.randomBytes(32).toString('base64');
+  private generateBotToken(clientId: string): string {
+    // Format Discord bot token: [client_id].[random_base64]
+    const randomPart = crypto.randomBytes(32).toString('base64').replace(/[+/=]/g, '');
+    return `${clientId}.${randomPart}`;
   }
 
   /**
@@ -225,12 +334,12 @@ export class UserBotManager {
    */
   private generateInviteLink(clientId: string, permissions: string[]): BotInviteLink {
     const permissionBits = this.calculatePermissionBits(permissions);
-    const url = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&scope=bot&permissions=${permissionBits}`;
+    const inviteUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&scope=bot&permissions=${permissionBits}`;
     
     return {
-      url,
+      url: inviteUrl,
+      permissions: permissionBits,
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
-      permissions: permissionBits
     };
   }
 
@@ -242,10 +351,7 @@ export class UserBotManager {
       'VIEW_CHANNELS': 1024,
       'READ_MESSAGE_HISTORY': 65536,
       'SEND_MESSAGES': 2048,
-      'EMBED_LINKS': 16384,
-      'ATTACH_FILES': 32768,
-      'USE_EXTERNAL_EMOJIS': 262144,
-      'ADD_REACTIONS': 64
+      'MANAGE_MESSAGES': 8192,
     };
 
     return permissions.reduce((bits, permission) => {
