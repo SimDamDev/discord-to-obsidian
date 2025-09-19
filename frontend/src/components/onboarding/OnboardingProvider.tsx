@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { OnboardingState, UserConfiguration, OnboardingContextType } from '@/types/onboarding';
+import { onboardingAnalytics } from '@/services/OnboardingAnalytics';
+import { abTestingService } from '@/services/ABTestingService';
 
 // État initial - Flux simplifié (5 étapes)
 const initialState: OnboardingState = {
@@ -118,6 +120,21 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  // Initialiser l'A/B testing et les analytics
+  useEffect(() => {
+    const userId = 'user-' + Math.random().toString(36).substr(2, 9);
+    const sessionId = 'session-' + Math.random().toString(36).substr(2, 9);
+    
+    // Assigner une variante A/B
+    const abTestResult = abTestingService.assignVariant(userId, sessionId);
+    
+    // Démarrer le tracking de l'onboarding
+    onboardingAnalytics.startStep(0, 'authAndConsent');
+    
+    console.log('🧪 A/B Test assigné:', abTestResult.variant);
+    console.log('📊 Analytics démarrées pour l\'onboarding');
+  }, []);
+
   // Charger l'état depuis le localStorage
   useEffect(() => {
     const savedState = localStorage.getItem('onboarding-state');
@@ -144,7 +161,18 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   };
 
   const nextStep = () => {
+    // Terminer le tracking de l'étape actuelle
+    onboardingAnalytics.completeStep(state.currentStep, true);
+    
+    // Passer à l'étape suivante
     dispatch({ type: 'NEXT_STEP' });
+    
+    // Démarrer le tracking de la nouvelle étape
+    const stepIds = ['authAndConsent', 'autoSetup', 'channelSelection', 'obsidianConfig', 'finalization'];
+    const nextStepId = stepIds[state.currentStep + 1];
+    if (nextStepId) {
+      onboardingAnalytics.startStep(state.currentStep + 1, nextStepId);
+    }
   };
 
   const previousStep = () => {
@@ -158,8 +186,17 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const completeOnboarding = (config: UserConfiguration) => {
     setConfiguration(config);
     dispatch({ type: 'COMPLETE_ONBOARDING', config });
+    
+    // Terminer le tracking de l'onboarding
+    const completionTime = Date.now() - (onboardingAnalytics as any).stepStartTime[0];
+    onboardingAnalytics.completeOnboarding();
+    abTestingService.markCompleted(completionTime);
+    
     // Nettoyer le localStorage
     localStorage.removeItem('onboarding-state');
+    
+    console.log('🎉 Onboarding complété avec succès!');
+    console.log('📊 Métriques envoyées');
   };
 
   const resetOnboarding = () => {
