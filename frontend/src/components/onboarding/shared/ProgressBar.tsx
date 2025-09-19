@@ -4,31 +4,30 @@ import React from 'react';
 import { useOnboarding } from '../OnboardingProvider';
 
 const steps = [
-  { id: 'discordAuth', title: 'Discord', icon: '🎮' },
-  { id: 'botCreation', title: 'Bot', icon: '🤖' },
-  { id: 'serverSelection', title: 'Serveurs', icon: '🏠' },
+  { id: 'authAndConsent', title: 'Connexion', icon: '🔐' },
+  { id: 'autoSetup', title: 'Auto-Setup', icon: '⚡' },
   { id: 'channelSelection', title: 'Canaux', icon: '💬' },
   { id: 'obsidianConfig', title: 'Obsidian', icon: '📝' },
-  { id: 'finalization', title: 'Final', icon: '✅' },
+  { id: 'finalization', title: 'Activation', icon: '🚀' },
 ];
 
 export function ProgressBar() {
   const { state } = useOnboarding();
 
   return (
-    <div className="w-full max-w-4xl mx-auto mb-8">
-      <div className="flex items-center justify-between">
+    <div className="w-full max-w-4xl mx-auto mb-6 md:mb-8">
+      <div className="flex items-center justify-between overflow-x-auto pb-2">
         {steps.map((step, index) => {
           const isActive = index === state.currentStep;
           const isCompleted = state.steps[step.id as keyof typeof state.steps].completed;
           const isAccessible = index <= state.currentStep || isCompleted;
 
           return (
-            <div key={step.id} className="flex flex-col items-center">
+            <div key={step.id} className="flex flex-col items-center min-w-0 flex-shrink-0">
               {/* Cercle de l'étape */}
               <div
                 className={`
-                  w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold
+                  w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm md:text-lg font-semibold
                   transition-all duration-300 ease-in-out
                   ${isCompleted
                     ? 'bg-green-500 text-white shadow-lg'
@@ -46,7 +45,7 @@ export function ProgressBar() {
               {/* Titre de l'étape */}
               <span
                 className={`
-                  mt-2 text-sm font-medium text-center
+                  mt-1 md:mt-2 text-xs md:text-sm font-medium text-center
                   ${isActive || isCompleted
                     ? 'text-gray-900'
                     : isAccessible

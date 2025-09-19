@@ -3,45 +3,27 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { OnboardingState, UserConfiguration, OnboardingContextType } from '@/types/onboarding';
 
-// État initial
+// État initial - Flux simplifié (5 étapes)
 const initialState: OnboardingState = {
   currentStep: 0,
   isCompleted: false,
   steps: {
-    discordAuth: {
-      id: 'discordAuth',
-      title: 'Connexion Discord',
-      description: 'Connectez-vous avec votre compte Discord',
+    authAndConsent: {
+      id: 'authAndConsent',
+      title: 'Connexion & Consentement',
+      description: 'Connectez-vous avec Discord et acceptez nos conditions',
       completed: false,
     },
-    privacyPolicy: {
-      id: 'privacyPolicy',
-      title: 'Politique de Confidentialité',
-      description: 'Transparence sur l\'utilisation de vos données',
-      completed: false,
-    },
-    consent: {
-      id: 'consent',
-      title: 'Consentement RGPD',
-      description: 'Choisissez quelles données vous acceptez de partager',
-      completed: false,
-    },
-    botCreation: {
-      id: 'botCreation',
-      title: 'Configuration du Bot',
-      description: 'Configurez l\'accès au bot principal',
-      completed: false,
-    },
-    serverSelection: {
-      id: 'serverSelection',
-      title: 'Sélection des Serveurs',
-      description: 'Choisissez les serveurs à surveiller',
+    autoSetup: {
+      id: 'autoSetup',
+      title: 'Configuration Automatique',
+      description: 'Configuration automatique du bot et détection des serveurs',
       completed: false,
     },
     channelSelection: {
       id: 'channelSelection',
       title: 'Sélection des Canaux',
-      description: 'Sélectionnez les canaux spécifiques',
+      description: 'Choisissez les canaux à surveiller',
       completed: false,
     },
     obsidianConfig: {
@@ -52,8 +34,8 @@ const initialState: OnboardingState = {
     },
     finalization: {
       id: 'finalization',
-      title: 'Finalisation',
-      description: 'Activez la surveillance',
+      title: 'Activation & Test',
+      description: 'Activez la surveillance et testez le fonctionnement',
       completed: false,
     },
   },
@@ -89,7 +71,7 @@ function onboardingReducer(state: OnboardingState, action: OnboardingAction): On
     case 'NEXT_STEP':
       return {
         ...state,
-        currentStep: Math.min(state.currentStep + 1, 5),
+        currentStep: Math.min(state.currentStep + 1, 4), // 5 étapes (0-4)
       };
 
     case 'PREVIOUS_STEP':
@@ -101,7 +83,7 @@ function onboardingReducer(state: OnboardingState, action: OnboardingAction): On
     case 'GO_TO_STEP':
       return {
         ...state,
-        currentStep: Math.max(0, Math.min(action.stepIndex, 5)),
+        currentStep: Math.max(0, Math.min(action.stepIndex, 4)), // 5 étapes (0-4)
       };
 
     case 'COMPLETE_ONBOARDING':

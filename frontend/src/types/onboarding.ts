@@ -10,9 +10,8 @@ export interface OnboardingState {
   currentStep: number;
   isCompleted: boolean;
   steps: {
-    discordAuth: OnboardingStep;
-    botCreation: OnboardingStep;
-    serverSelection: OnboardingStep;
+    authAndConsent: OnboardingStep;
+    autoSetup: OnboardingStep;
     channelSelection: OnboardingStep;
     obsidianConfig: OnboardingStep;
     finalization: OnboardingStep;

@@ -3,11 +3,8 @@
 import React, { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useOnboarding } from '@/components/onboarding/OnboardingProvider';
-import { DiscordAuthStep } from '@/components/onboarding/steps/DiscordAuthStep';
-import { PrivacyPolicyStep } from '@/components/onboarding/steps/PrivacyPolicyStep';
-import { ConsentStep } from '@/components/onboarding/steps/ConsentStep';
-import { BotCreationStep } from '@/components/onboarding/steps/BotCreationStep';
-import { ServerSelectionStep } from '@/components/onboarding/steps/ServerSelectionStep';
+import { AuthAndConsentStep } from '@/components/onboarding/steps/AuthAndConsentStep';
+import { AutoSetupStep } from '@/components/onboarding/steps/AutoSetupStep';
 import { ChannelSelectionStep } from '@/components/onboarding/steps/ChannelSelectionStep';
 import { ObsidianConfigStep } from '@/components/onboarding/steps/ObsidianConfigStep';
 import { FinalizationStep } from '@/components/onboarding/steps/FinalizationStep';
@@ -23,8 +20,8 @@ export default function OnboardingPage() {
     
     if (step) {
       const stepNumber = parseInt(step);
-      if (stepNumber >= 0 && stepNumber <= 7) {
-        dispatch({ type: 'SET_STEP', payload: stepNumber });
+      if (stepNumber >= 0 && stepNumber <= 4) { // 5 étapes (0-4)
+        dispatch({ type: 'GO_TO_STEP', stepIndex: stepNumber });
       }
     }
     
@@ -34,27 +31,21 @@ export default function OnboardingPage() {
     }
   }, [searchParams, dispatch]);
 
-  // Rendu conditionnel basé sur l'étape actuelle
+  // Rendu conditionnel basé sur l'étape actuelle - Flux simplifié
   const renderCurrentStep = () => {
     switch (state.currentStep) {
       case 0:
-        return <DiscordAuthStep />;
+        return <AuthAndConsentStep />;
       case 1:
-        return <PrivacyPolicyStep />;
+        return <AutoSetupStep />;
       case 2:
-        return <ConsentStep />;
-      case 3:
-        return <BotCreationStep />;
-      case 4:
-        return <ServerSelectionStep />;
-      case 5:
         return <ChannelSelectionStep />;
-      case 6:
+      case 3:
         return <ObsidianConfigStep />;
-      case 7:
+      case 4:
         return <FinalizationStep />;
       default:
-        return <DiscordAuthStep />;
+        return <AuthAndConsentStep />;
     }
   };
 

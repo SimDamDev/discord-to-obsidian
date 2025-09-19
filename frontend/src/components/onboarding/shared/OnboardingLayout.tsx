@@ -35,14 +35,14 @@ export function OnboardingLayout({
   showPrevious = true,
 }: OnboardingLayoutProps) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
-      <div className="max-w-4xl mx-auto px-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-4 md:py-8">
+      <div className="max-w-4xl mx-auto px-4 md:px-6">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+        <div className="text-center mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2">
             Discord to Obsidian
           </h1>
-          <p className="text-lg text-gray-600">
+          <p className="text-base md:text-lg text-gray-600">
             Configuration guidée de votre surveillance Discord
           </p>
         </div>
@@ -52,23 +52,23 @@ export function OnboardingLayout({
 
         {/* Main Content */}
         <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="text-center pb-6">
-            <div className="flex items-center justify-center mb-4">
+          <CardHeader className="text-center pb-4 md:pb-6">
+            <div className="flex items-center justify-center mb-3 md:mb-4">
               {icon && (
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-3xl">
+                <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-100 rounded-full flex items-center justify-center text-2xl md:text-3xl">
                   {icon}
                 </div>
               )}
             </div>
-            <CardTitle className="text-2xl font-bold text-gray-900">
+            <CardTitle className="text-xl md:text-2xl font-bold text-gray-900">
               {title}
             </CardTitle>
-            <CardDescription className="text-lg text-gray-600 mt-2">
+            <CardDescription className="text-base md:text-lg text-gray-600 mt-2">
               {description}
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="px-8 pb-8">
+          <CardContent className="px-4 md:px-8 pb-6 md:pb-8">
             {children}
 
             {/* Navigation */}
