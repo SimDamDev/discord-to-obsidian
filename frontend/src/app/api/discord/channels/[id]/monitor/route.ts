@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // Récupérer la session NextAuth
@@ -17,6 +17,7 @@ export async function DELETE(
       );
     }
 
+    const params = await context.params;
     const channelId = params.id;
 
     // TODO: Implémenter la suppression du canal de la surveillance

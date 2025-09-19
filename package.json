@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Application web pour connecter Discord à Obsidian",
   "scripts": {
-    "dev": "npm run kill-ports && docker-compose -f docker-compose.dev.yml up -d && npm run dev:all",
-    "dev:all": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:worker\"",
+    "dev": "docker-compose --env-file .env.dev up --build",
+    "dev:local": "npm run kill-ports && concurrently \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:worker\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "dev:worker": "cd worker && npm run dev",
