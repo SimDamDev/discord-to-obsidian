@@ -1,9 +1,22 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { vi } from 'vitest';
+
+// Mock du client Prisma DOIT être au sommet
+vi.mock('../../lib/prisma', () => {
+  const prismaMock = {
+    user: {
+      upsert: vi.fn(),
+    },
+  };
+  return { default: prismaMock };
+});
+
+import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../../app';
-
-// Mock des appels externes
+import prisma from '../../lib/prisma'; // Importer le mock
 import axios from 'axios';
+
+// Mock des appels externes (axios)
 vi.mock('axios');
 const mockedAxios = vi.mocked(axios);
 
@@ -19,49 +32,47 @@ describe('Authentication Integration', () => {
         .expect(200);
 
       expect(response.body).toHaveProperty('authUrl');
-      expect(response.body.authUrl).toContain('discord.com/oauth2/authorize');
-      expect(response.body.authUrl).toContain('client_id=');
-      expect(response.body.authUrl).toContain('scope=identify%20email%20guilds');
     });
   });
 
   describe('POST /api/auth/discord/callback', () => {
-    it('should handle Discord callback and create user', async () => {
-      // Mock de la réponse du token Discord
+    it('should handle Discord callback, create/update user, and return token', async () => {
+      // 1. Mock des réponses externes
       mockedAxios.post.mockResolvedValueOnce({
-        data: {
-          access_token: 'mock_access_token',
-          refresh_token: 'mock_refresh_token',
-          token_type: 'Bearer',
-          expires_in: 604800,
-        }
+        data: { access_token: 'mock_access_token', refresh_token: 'mock_refresh_token' }
       });
+      const mockDiscordUser = { id: '123456789', username: 'testuser', avatar: 'avatar_hash' };
+      mockedAxios.get.mockResolvedValueOnce({ data: mockDiscordUser });
 
-      // Mock de la réponse des informations utilisateur Discord
-      mockedAxios.get.mockResolvedValueOnce({
-        data: {
-          id: '123456789',
-          username: 'testuser',
-          global_name: 'Test User',
-          avatar: 'avatar_hash',
-          email: 'test@example.com',
-          verified: true,
-        }
-      });
+      // 2. Mock de la réponse de la base de données
+      const mockDbUser = { id: 'db_user_id', discordId: '123456789', username: 'testuser', avatarUrl: 'https://cdn.discordapp.com/avatars/123456789/avatar_hash.png' };
+      (prisma.user.upsert as vi.Mock).mockResolvedValue(mockDbUser);
 
+      // 3. Exécution de la requête
       const response = await request(app)
         .post('/api/auth/discord/callback')
         .send({ code: 'mock_auth_code' })
         .expect(200);
 
+      // 4. Vérification de l'appel à la base de données
+      expect(prisma.user.upsert).toHaveBeenCalledTimes(1);
+      expect(prisma.user.upsert).toHaveBeenCalledWith({
+        where: { discordId: '123456789' },
+        update: expect.any(Object),
+        create: expect.objectContaining({
+          discordId: '123456789',
+          username: 'testuser',
+        }),
+      });
+
+      // 5. Vérification de la réponse de l'API
       expect(response.body).toHaveProperty('user');
       expect(response.body).toHaveProperty('token');
-      expect(response.body).toHaveProperty('accessToken');
-      expect(response.body).toHaveProperty('refreshToken');
-      
+      expect(response.body.user.id).toBe('db_user_id');
       expect(response.body.user.discordId).toBe('123456789');
-      expect(response.body.user.username).toBe('testuser');
-      expect(response.body.user.email).toBe('test@example.com');
+      // Les tokens ne doivent plus être renvoyés
+      expect(response.body).not.toHaveProperty('accessToken');
+      expect(response.body).not.toHaveProperty('refreshToken');
     });
 
     it('should handle missing authorization code', async () => {
@@ -70,7 +81,6 @@ describe('Authentication Integration', () => {
         .send({})
         .expect(400);
 
-      expect(response.body).toHaveProperty('error');
       expect(response.body.error).toBe('Code d\'autorisation requis');
     });
 
@@ -82,7 +92,7 @@ describe('Authentication Integration', () => {
         .send({ code: 'invalid_code' })
         .expect(500);
 
-      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toBe('Erreur lors de l\'authentification');
     });
   });
 

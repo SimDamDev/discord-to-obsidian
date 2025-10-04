@@ -1,80 +1,35 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma'; // Utiliser le client Prisma partagé
 import axios from 'axios';
 
-const prisma = new PrismaClient();
-
 export class DiscordCacheService {
-  private static readonly CACHE_DURATION_SERVERS = 15 * 60 * 1000; // 15 minutes
-  private static readonly CACHE_DURATION_CHANNELS = 30 * 60 * 1000; // 30 minutes
-
   /**
-   * Récupère les serveurs Discord avec cache
+   * Récupère les serveurs Discord d'un utilisateur.
+   * NOTE: La logique de lecture du cache a été désactivée temporairement pour corriger une faille de sécurité
+   * où les données d'un utilisateur pouvaient être montrées à un autre.
+   * Le service appelle maintenant directement l'API de Discord pour garantir l'isolation des données.
    */
   static async getCachedServers(userId: string, accessToken: string) {
     try {
-      // Vérifier si on a des serveurs en cache récents
-      const cachedServers = await prisma.discordServer.findMany({
-        where: {
-          lastCached: {
-            gte: new Date(Date.now() - this.CACHE_DURATION_SERVERS)
-          }
-        },
-        include: {
-          discordChannels: {
-            where: {
-              lastCached: {
-                gte: new Date(Date.now() - this.CACHE_DURATION_CHANNELS)
-              }
-            }
-          }
-        }
-      });
-
-      // Si on a des serveurs en cache, les retourner
-      if (cachedServers.length > 0) {
-        console.log(`📦 Cache hit: ${cachedServers.length} serveurs récupérés depuis le cache`);
-        return this.formatServersForAPI(cachedServers);
-      }
-
-      // Sinon, récupérer depuis l'API Discord et mettre en cache
-      console.log('🔄 Cache miss: Récupération depuis l\'API Discord');
+      console.log(`🔄 Récupération des serveurs depuis l'API Discord pour l'utilisateur ${userId}`);
+      // Appelle directement la fonction de fetch pour garantir que l'utilisateur ne voit que ses propres serveurs.
       return await this.fetchAndCacheServers(accessToken);
     } catch (error) {
-      console.error('Erreur lors de la récupération des serveurs:', error);
+      console.error(`Erreur lors de la récupération des serveurs pour l'utilisateur ${userId}:`, error);
       throw error;
     }
   }
 
   /**
-   * Récupère les canaux d'un serveur avec cache
+   * Récupère les canaux d'un serveur.
+   * NOTE: La logique de lecture du cache a été désactivée temporairement pour corriger une faille de sécurité.
    */
   static async getCachedChannels(serverDiscordId: string, accessToken: string) {
     try {
-      // Trouver le serveur en base
-      const server = await prisma.discordServer.findUnique({
-        where: { discordId: serverDiscordId },
-        include: {
-          discordChannels: {
-            where: {
-              lastCached: {
-                gte: new Date(Date.now() - this.CACHE_DURATION_CHANNELS)
-              }
-            }
-          }
-        }
-      });
-
-      // Si on a des canaux en cache récents, les retourner
-      if (server && server.discordChannels.length > 0) {
-        console.log(`📦 Cache hit: ${server.discordChannels.length} canaux récupérés depuis le cache`);
-        return this.formatChannelsForAPI(server.discordChannels);
-      }
-
-      // Sinon, récupérer depuis l'API Discord et mettre en cache
-      console.log('🔄 Cache miss: Récupération des canaux depuis l\'API Discord');
+      console.log(`🔄 Récupération des canaux pour le serveur ${serverDiscordId} depuis l'API Discord`);
+      // Appelle directement la fonction de fetch pour garantir des données à jour.
       return await this.fetchAndCacheChannels(serverDiscordId, accessToken);
     } catch (error) {
-      console.error('Erreur lors de la récupération des canaux:', error);
+      console.error(`Erreur lors de la récupération des canaux pour le serveur ${serverDiscordId}:`, error);
       throw error;
     }
   }

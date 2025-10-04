@@ -1,21 +1,28 @@
 import { Router } from 'express';
+import { authenticateToken } from './auth'; // Importer le middleware
 import { DiscordCacheService } from '../services/DiscordCacheService';
+import prisma from '../lib/prisma';
 
 const router = Router();
 
+// Appliquer le middleware à toutes les routes de ce routeur
+router.use(authenticateToken);
+
 /**
  * GET /api/discord/servers
- * Récupère les serveurs Discord avec cache
+ * Récupère les serveurs Discord de l'utilisateur authentifié
  */
 router.get('/servers', async (req, res) => {
   try {
-    const { userId, accessToken } = req.body;
+    const userId = req.user.id; // Obtenir l'ID de l'utilisateur depuis le token
 
-    if (!userId || !accessToken) {
-      return res.status(400).json({ error: 'userId et accessToken requis' });
+    // Récupérer l'accessToken de l'utilisateur depuis la base de données
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.accessToken) {
+      return res.status(401).json({ error: 'Token d\'accès Discord non trouvé pour l\'utilisateur' });
     }
 
-    const servers = await DiscordCacheService.getCachedServers(userId, accessToken);
+    const servers = await DiscordCacheService.getCachedServers(userId, user.accessToken);
     res.json({ guilds: servers });
   } catch (error) {
     console.error('Erreur lors de la récupération des serveurs:', error);
@@ -25,20 +32,21 @@ router.get('/servers', async (req, res) => {
 
 /**
  * POST /api/discord/servers
- * Stocke les serveurs Discord en base de données
+ * Stocke les serveurs Discord sélectionnés par l'utilisateur authentifié
  */
 router.post('/servers', async (req, res) => {
   try {
-    const { userId, servers } = req.body;
+    const userId = req.user.id; // Obtenir l'ID de l'utilisateur depuis le token
+    const { servers } = req.body;
 
-    if (!userId || !servers) {
-      return res.status(400).json({ error: 'userId et servers requis' });
+    if (!servers) {
+      return res.status(400).json({ error: 'La liste des serveurs est requise' });
     }
 
     // Stocker les serveurs en base de données
     await DiscordCacheService.storeServers(userId, servers);
     
-    console.log(`💾 [Backend] ${servers.length} serveurs stockés en base de données PostgreSQL pour l'utilisateur ${userId}`);
+    console.log(`💾 [Backend] ${servers.length} serveurs stockés pour l'utilisateur ${userId}`);
     
     res.json({ 
       success: true, 
@@ -53,18 +61,20 @@ router.post('/servers', async (req, res) => {
 
 /**
  * GET /api/discord/servers/:serverId/channels
- * Récupère les canaux d'un serveur avec cache
+ * Récupère les canaux d'un serveur pour l'utilisateur authentifié
  */
 router.get('/servers/:serverId/channels', async (req, res) => {
   try {
+    const userId = req.user.id; // Obtenir l'ID de l'utilisateur depuis le token
     const { serverId } = req.params;
-    const { accessToken } = req.body;
 
-    if (!accessToken) {
-      return res.status(400).json({ error: 'accessToken requis' });
+    // Récupérer l'accessToken de l'utilisateur depuis la base de données
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.accessToken) {
+      return res.status(401).json({ error: 'Token d\'accès Discord non trouvé pour l\'utilisateur' });
     }
 
-    const channels = await DiscordCacheService.getCachedChannels(serverId, accessToken);
+    const channels = await DiscordCacheService.getCachedChannels(serverId, user.accessToken);
     res.json({ channels });
   } catch (error) {
     console.error('Erreur lors de la récupération des canaux:', error);
