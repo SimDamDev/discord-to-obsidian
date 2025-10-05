@@ -16,9 +16,9 @@
     "db:migrate": "cd backend && npx prisma migrate dev",
     "db:seed": "cd backend && npx prisma db seed",
     "db:reset": "cd backend && npx prisma migrate reset",
-    "test": "cd backend && npm test",
-    "test:unit": "cd backend && vitest",
-    "test:integration": "echo 'Integration test script needs to be fixed'",
+    "test": "cd backend && vitest run",
+    "test:unit": "cd backend && vitest run src/services",
+    "test:integration": "cd backend && vitest run src/__tests__/integration",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write .",
     "type-check": "tsc --noEmit"

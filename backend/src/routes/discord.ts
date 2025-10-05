@@ -82,4 +82,54 @@ router.get('/servers/:serverId/channels', async (req, res) => {
   }
 });
 
+// --- ROUTES DE SURVEILLANCE ET PERMISSIONS (AVEC DONNÉES MOCKÉES) ---
+
+/**
+ * GET /api/discord/permissions
+ * Renvoie des permissions simulées pour l'utilisateur.
+ */
+router.get('/permissions', async (req, res) => {
+  res.json({
+    valid: true,
+    user: {
+      id: req.user.discordId,
+      username: req.user.username,
+      discriminator: '0001',
+      avatar: '',
+    },
+    permissions: {
+      canReadGuilds: true,
+      canReadChannels: true,
+    }
+  });
+});
+
+/**
+ * GET /api/discord/channels/monitored
+ * Renvoie une liste (vide) de canaux surveillés.
+ */
+router.get('/channels/monitored', async (req, res) => {
+  res.json({ channels: [] });
+});
+
+/**
+ * POST /api/discord/channels/:id/monitor
+ * Simule le démarrage de la surveillance d'un canal.
+ */
+router.post('/channels/:id/monitor', async (req, res) => {
+  const { id } = req.params;
+  console.log(`[MOCK] Démarrage de la surveillance pour le canal ${id}`);
+  res.status(200).json({ success: true, message: `Canal ${id} surveillé.` });
+});
+
+/**
+ * DELETE /api/discord/channels/:id/monitor
+ * Simule l'arrêt de la surveillance d'un canal.
+ */
+router.delete('/channels/:id/monitor', async (req, res) => {
+  const { id } = req.params;
+  console.log(`[MOCK] Arrêt de la surveillance pour le canal ${id}`);
+  res.status(200).json({ success: true, message: `Surveillance du canal ${id} arrêtée.` });
+});
+
 export default router;
