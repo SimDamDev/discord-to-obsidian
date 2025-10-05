@@ -16,7 +16,8 @@ export default defineConfig({
       '.idea',
       '.git',
       '.cache',
-      'src/__tests__/setup.ts'
+      'src/__tests__/setup.ts',
+      'src/__tests__/mocks/**'
     ],
     coverage: {
       provider: 'v8',

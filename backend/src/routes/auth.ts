@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import axios from 'axios';
 import jwt from 'jsonwebtoken';
+import prisma from '../lib/prisma';
 
 const router = Router();
 
@@ -74,7 +75,7 @@ router.post('/discord/callback', async (req: Request, res: Response) => {
 
     const { access_token, refresh_token } = tokenResponse.data;
 
-    // Récupérer les informations utilisateur
+    // Récupérer les informations utilisateur depuis Discord
     const userResponse = await axios.get('https://discord.com/api/users/@me', {
       headers: {
         'Authorization': `Bearer ${access_token}`,
@@ -82,13 +83,34 @@ router.post('/discord/callback', async (req: Request, res: Response) => {
     });
 
     const discordUser = userResponse.data;
+    const avatarUrl = discordUser.avatar
+      ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
+      : null;
+
+    // Sauvegarder ou mettre à jour l'utilisateur dans la base de données
+    const user = await prisma.user.upsert({
+      where: { discordId: discordUser.id },
+      update: {
+        username: discordUser.username,
+        avatarUrl: avatarUrl,
+        accessToken: access_token,
+        refreshToken: refresh_token,
+      },
+      create: {
+        discordId: discordUser.id,
+        username: discordUser.username,
+        avatarUrl: avatarUrl,
+        accessToken: access_token,
+        refreshToken: refresh_token,
+      },
+    });
 
     // Créer un token JWT pour l'utilisateur
     const jwtToken = jwt.sign(
       {
-        discordId: discordUser.id,
-        username: discordUser.username,
-        email: discordUser.email,
+        id: user.id, // ID de notre base de données
+        discordId: user.discordId,
+        username: user.username,
       },
       process.env.JWT_SECRET!,
       { expiresIn: '24h' }
@@ -96,16 +118,12 @@ router.post('/discord/callback', async (req: Request, res: Response) => {
 
     res.json({
       user: {
-        discordId: discordUser.id,
-        username: discordUser.username,
-        avatarUrl: discordUser.avatar ? 
-          `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png` : 
-          null,
-        email: discordUser.email,
+        id: user.id,
+        discordId: user.discordId,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
       },
       token: jwtToken,
-      accessToken: access_token,
-      refreshToken: refresh_token,
     });
   } catch (error) {
     console.error('Erreur lors du callback OAuth2:', error);

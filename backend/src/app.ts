@@ -45,12 +45,14 @@ import authRoutes from './routes/auth';
 import discordRoutes from './routes/discord';
 import connectionRoutes from './routes/connections';
 import cacheRoutes from './routes/cache';
+import userBotRoutes from './routes/user-bot';
 
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/discord', discordRoutes);
 app.use('/api/connections', connectionRoutes);
 app.use('/api/cache', cacheRoutes);
+app.use('/api/user-bot', userBotRoutes);
 
 app.get('/api', (req, res) => {
   res.json({ 

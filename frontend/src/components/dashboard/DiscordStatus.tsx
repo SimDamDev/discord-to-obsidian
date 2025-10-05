@@ -6,60 +6,39 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Database, Clock, AlertTriangle } from 'lucide-react';
 
-interface DiscordStatusData {
-  cache: {
-    totalEntries: number;
-    validEntries: number;
-    expiredEntries: number;
-    entries: Array<{
-      key: string;
-      age: number;
-      expiresIn: number;
-      isExpired: boolean;
-    }>;
-  };
-  rateLimit: {
-    queueLength: number;
-    isProcessing: boolean;
-    rateLimits: Record<string, any>;
-  };
+// --- TYPES ---
+interface StatusData {
+  cache: { totalEntries: number; validEntries: number; expiredEntries: number; };
+  rateLimit: { queueLength: number; isProcessing: boolean; };
   timestamp: string;
 }
+interface DbStats { users: number; servers: number; channels: number; }
 
-interface DatabaseStats {
-  users: number;
-  servers: number;
-  channels: number;
-  lastUpdate: string;
-}
+// --- HELPERS ---
+const StatCard = ({ title, value, colorClass = 'text-slate-100' }: { title: string, value: number, colorClass?: string }) => (
+  <div className="bg-slate-900/50 p-3 rounded-lg text-center">
+    <div className={`text-2xl font-bold ${colorClass}`}>{value}</div>
+    <div className="text-xs text-slate-400 uppercase">{title}</div>
+  </div>
+);
 
+// --- MAIN COMPONENT ---
 export default function DiscordStatus() {
-  const [status, setStatus] = useState<DiscordStatusData | null>(null);
-  const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<StatusData | null>(null);
+  const [dbStats, setDbStats] = useState<DbStats | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchStatus = async () => {
     setLoading(true);
-    setError(null);
-    
     try {
-      const [statusResponse, dbResponse] = await Promise.all([
+      const [statusRes, dbRes] = await Promise.all([
         fetch('/api/discord/status'),
         fetch('/api/discord/database/stats')
       ]);
-      
-      if (!statusResponse.ok) {
-        throw new Error('Erreur lors de la récupération du statut');
-      }
-      
-      const statusData = await statusResponse.json();
-      setStatus(statusData);
-      
-      if (dbResponse.ok) {
-        const dbData = await dbResponse.json();
-        setDbStats(dbData);
-      }
+      if (!statusRes.ok) throw new Error('Erreur de statut Discord');
+      setStatus(await statusRes.json());
+      if (dbRes.ok) setDbStats(await dbRes.json());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
     } finally {
@@ -69,154 +48,85 @@ export default function DiscordStatus() {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 5000); // Mise à jour toutes les 5 secondes
+    const interval = setInterval(fetchStatus, 30000); // Actualisation toutes les 30s
     return () => clearInterval(interval);
   }, []);
 
-  const formatTime = (ms: number) => {
-    if (ms < 1000) return `${ms}ms`;
-    if (ms < 60000) return `${Math.round(ms / 1000)}s`;
-    return `${Math.round(ms / 60000)}min`;
-  };
-
-  if (error) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
-            Statut Discord
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-red-500 mb-4">{error}</p>
-          <Button onClick={fetchStatus} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Réessayer
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Database className="h-5 w-5" />
-            Statut Discord
-          </div>
-          <Button 
-            onClick={fetchStatus} 
-            disabled={loading}
-            size="sm"
-            variant="outline"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
+    <Card className="bg-slate-800 border-slate-700">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="text-slate-100 flex items-center gap-2 text-lg">
+          <Database className="h-5 w-5 text-blue-400" />
+          Statut des Services
         </CardTitle>
+        <Button onClick={fetchStatus} disabled={loading} size="sm" variant="ghost" className="text-slate-400 hover:text-white hover:bg-slate-700">
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+        </Button>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Cache Status */}
-        <div>
-          <h4 className="font-semibold mb-2 flex items-center gap-2">
-            <Database className="h-4 w-4" />
-            Cache
-          </h4>
-          <div className="grid grid-cols-3 gap-2 text-sm">
-            <div className="text-center">
-              <div className="font-medium">{status?.cache.totalEntries || 0}</div>
-              <div className="text-gray-500">Total</div>
-            </div>
-            <div className="text-center">
-              <div className="font-medium text-green-600">{status?.cache.validEntries || 0}</div>
-              <div className="text-gray-500">Valides</div>
-            </div>
-            <div className="text-center">
-              <div className="font-medium text-red-600">{status?.cache.expiredEntries || 0}</div>
-              <div className="text-gray-500">Expirées</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Database Status */}
-        {dbStats && (
-          <div>
-            <h4 className="font-semibold mb-2 flex items-center gap-2">
-              <Database className="h-4 w-4" />
-              Base de Données
-            </h4>
-            <div className="grid grid-cols-3 gap-2 text-sm">
-              <div className="text-center">
-                <div className="font-medium">{dbStats.users}</div>
-                <div className="text-gray-500">Utilisateurs</div>
+      <CardContent>
+        {loading && !status ? (
+          <StatusSkeleton />
+        ) : error ? (
+          <div className="text-red-400 text-center p-4">{error}</div>
+        ) : (
+          <div className="space-y-6">
+            {dbStats && (
+              <div>
+                <h4 className="font-semibold mb-2 text-slate-300">Base de Données</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  <StatCard title="Utilisateurs" value={dbStats.users} />
+                  <StatCard title="Serveurs" value={dbStats.servers} colorClass="text-blue-400" />
+                  <StatCard title="Canaux" value={dbStats.channels} colorClass="text-green-400" />
+                </div>
               </div>
-              <div className="text-center">
-                <div className="font-medium text-blue-600">{dbStats.servers}</div>
-                <div className="text-gray-500">Serveurs</div>
-              </div>
-              <div className="text-center">
-                <div className="font-medium text-green-600">{dbStats.channels}</div>
-                <div className="text-gray-500">Canaux</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Rate Limit Status */}
-        <div>
-          <h4 className="font-semibold mb-2 flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            Rate Limiting
-          </h4>
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-sm">Queue:</span>
-              <Badge variant={status?.rateLimit.queueLength ? "destructive" : "secondary"}>
-                {status?.rateLimit.queueLength || 0}
-              </Badge>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm">Traitement:</span>
-              <Badge variant={status?.rateLimit.isProcessing ? "default" : "outline"}>
-                {status?.rateLimit.isProcessing ? "En cours" : "Arrêté"}
-              </Badge>
-            </div>
-          </div>
-        </div>
-
-        {/* Cache Entries */}
-        {status?.cache.entries && status.cache.entries.length > 0 && (
-          <div>
-            <h4 className="font-semibold mb-2">Entrées du cache</h4>
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {status.cache.entries.map((entry, index) => (
-                <div key={index} className="flex justify-between items-center text-xs p-2 bg-gray-50 rounded">
-                  <span className="truncate flex-1 mr-2">{entry.key}</span>
-                  <div className="flex gap-2">
-                    <Badge variant={entry.isExpired ? "destructive" : "secondary"}>
-                      {formatTime(entry.age)}
+            )}
+            {status && (
+              <div>
+                <h4 className="font-semibold mb-2 text-slate-300">Rate Limiter</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-300">File d'attente</span>
+                    <Badge className={`border-none ${status.rateLimit.queueLength > 0 ? 'bg-yellow-500/10 text-yellow-400' : 'bg-slate-700 text-slate-300'}`}>
+                      {status.rateLimit.queueLength}
                     </Badge>
-                    {!entry.isExpired && (
-                      <Badge variant="outline">
-                        {formatTime(entry.expiresIn)}
-                      </Badge>
-                    )}
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-300">Traitement</span>
+                    <Badge className={`border-none ${status.rateLimit.isProcessing ? 'bg-green-500/10 text-green-400' : 'bg-slate-700 text-slate-300'}`}>
+                      {status.rateLimit.isProcessing ? "Actif" : "Inactif"}
+                    </Badge>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Last Update */}
-        {status?.timestamp && (
-          <div className="text-xs text-gray-500 pt-2 border-t">
-            Dernière mise à jour: {new Date(status.timestamp).toLocaleTimeString()}
+              </div>
+            )}
+            <p className="text-xs text-slate-500 text-center pt-4 border-t border-slate-700">
+              Dernière mise à jour : {status ? new Date(status.timestamp).toLocaleTimeString() : 'N/A'}
+            </p>
           </div>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function StatusSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div>
+        <div className="h-4 bg-slate-700 rounded w-1/3 mb-2"></div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="h-16 bg-slate-700 rounded-lg"></div>
+          <div className="h-16 bg-slate-700 rounded-lg"></div>
+          <div className="h-16 bg-slate-700 rounded-lg"></div>
+        </div>
+      </div>
+      <div>
+        <div className="h-4 bg-slate-700 rounded w-1/3 mb-2"></div>
+        <div className="space-y-2">
+          <div className="h-6 bg-slate-700 rounded-md"></div>
+          <div className="h-6 bg-slate-700 rounded-md"></div>
+        </div>
+      </div>
+    </div>
   );
 }
