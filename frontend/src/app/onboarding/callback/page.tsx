@@ -1,18 +1,23 @@
 'use client';
 
+// Désactiver le prerendering pour cette page qui utilise des APIs client
+export const dynamic = 'force-dynamic';
+
 import { useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 export default function OnboardingCallback() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
-    // Récupérer les paramètres de l'URL
-    const step = searchParams.get('step');
-    const botInvited = searchParams.get('botInvited');
-    const error = searchParams.get('error');
-    const code = searchParams.get('code');
+    if (typeof window === 'undefined') return;
+    
+    // Récupérer les paramètres de l'URL côté client uniquement
+    const urlParams = new URLSearchParams(window.location.search);
+    const step = urlParams.get('step');
+    const botInvited = urlParams.get('botInvited');
+    const error = urlParams.get('error');
+    const code = urlParams.get('code');
 
     if (error) {
       // En cas d'erreur, rediriger vers l'onboarding avec un message d'erreur
@@ -30,7 +35,7 @@ export default function OnboardingCallback() {
 
     // Redirection par défaut vers l'onboarding
     router.push('/onboarding');
-  }, [router, searchParams]);
+  }, [router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -46,3 +51,4 @@ export default function OnboardingCallback() {
     </div>
   );
 }
+

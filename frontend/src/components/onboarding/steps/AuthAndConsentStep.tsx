@@ -18,7 +18,7 @@ export function AuthAndConsentStep() {
     if (session?.user?.discordId && consentGiven) {
       // L'utilisateur est connecté et a donné son consentement
       updateStep('authAndConsent', {
-        user: session.user,
+        user: session?.user,
         consent: {
           dataProcessing: true,
           discordAccess: true,
@@ -94,7 +94,7 @@ export function AuthAndConsentStep() {
                 <div>
                   <h4 className="font-semibold text-green-900">Connecté avec succès !</h4>
                   <p className="text-green-700">
-                    Bonjour <strong>{session.user.name}</strong> !
+                    Bonjour <strong>{session?.user?.name}</strong> !
                   </p>
                 </div>
               </div>

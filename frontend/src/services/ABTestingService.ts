@@ -196,6 +196,7 @@ class ABTestingService {
    */
   private getExistingAssignment(userId: string): ABTestResult | null {
     const key = `ab_test_${this.testConfig.testName}_${userId}`;
+    if (typeof window === 'undefined') return null;
     const stored = localStorage.getItem(key);
     
     if (stored) {
@@ -214,7 +215,9 @@ class ABTestingService {
    */
   private saveAssignment(result: ABTestResult): void {
     const key = `ab_test_${this.testConfig.testName}_${result.userId}`;
-    localStorage.setItem(key, JSON.stringify(result));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(result));
+    }
   }
 
   /**
@@ -272,8 +275,8 @@ class ABTestingService {
     console.log(`[A/B Test] ${eventName}:`, properties);
     
     // Envoyer vers votre service d'analytics
-    if (typeof gtag !== 'undefined') {
-      gtag('event', eventName, properties);
+    if (typeof (window as any).gtag !== 'undefined') {
+      (window as any).gtag('event', eventName, properties);
     }
     
     // Envoyer vers votre API

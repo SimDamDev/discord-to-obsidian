@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { OnboardingLayout } from '../shared/OnboardingLayout';
@@ -10,65 +11,86 @@ import { DiscordChannel } from '@/types/onboarding';
 
 export function ChannelSelectionStep() {
   const { data: session } = useSession();
+  const router = useRouter();
   const { updateStep, nextStep, state } = useOnboarding();
   const [channels, setChannels] = useState<{ [serverId: string]: DiscordChannel[] }>({});
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [channelsLoaded, setChannelsLoaded] = useState(false);
 
   // Récupérer les serveurs sélectionnés
-  const selectedServers = state.steps.serverSelection.data?.selectedServers || [];
+  const selectedServers = state.steps.configuration?.data?.selectedServers || [];
+  
+  console.log('🔍 ChannelSelection - État complet:', {
+    hasConfigurationData: !!state.steps.configuration?.data,
+    configurationData: state.steps.configuration?.data?.selectedServers,
+    selectedServersCount: selectedServers.length,
+    selectedServers: selectedServers
+  });
 
-  // Récupérer les canaux pour chaque serveur sélectionné
-  useEffect(() => {
-    const fetchChannels = async () => {
-      if (selectedServers.length === 0) return;
+  // Fonction pour charger les canaux
+  const loadChannels = async () => {
+    if (selectedServers.length === 0) {
+      setError('Aucun serveur sélectionné, impossible de récupérer les canaux');
+      return;
+    }
 
-      setIsLoading(true);
-      setError(null);
+    setIsLoading(true);
+    setError(null);
+    setChannelsLoaded(false);
 
-      try {
-        const channelsData: { [serverId: string]: DiscordChannel[] } = {};
+    try {
+      // Vérifier la session
+      if (!session?.accessToken) {
+        setError('Session Discord manquante. Veuillez vous reconnecter.');
+        return;
+      }
 
-        for (const server of selectedServers) {
-          try {
-            console.log(`🔍 Récupération des canaux pour le serveur ${server.name} (${server.id})...`);
+      const channelsData: { [serverId: string]: DiscordChannel[] } = {};
+
+      for (const server of selectedServers) {
+        try {
+          const response = await fetch(`/api/discord/servers/${server.id}/channels`);
+
+          if (response.ok) {
+            const data = await response.json();
             
-            const response = await fetch(`/api/discord/servers/${server.id}/channels`);
-
-            if (response.ok) {
-              const data = await response.json();
-              console.log(`✅ ${data.channels?.length || 0} canaux récupérés pour ${server.name}`);
-              
-              // Filtrer seulement les canaux de texte (type 0)
-              const textChannels = (data.channels || [])
-                .filter((channel: any) => channel.type === 0)
-                .map((channel: any) => ({
-                  ...channel,
-                  accessible: true,
-                }));
-              
-              channelsData[server.id] = textChannels;
-            } else {
-              console.error(`❌ Erreur ${response.status} pour le serveur ${server.name}`);
-              channelsData[server.id] = [];
-            }
-          } catch (err) {
-            console.error(`❌ Erreur pour le serveur ${server.name}:`, err);
+            // Filtrer seulement les canaux de texte (type 0)
+            const textChannels = (data.channels || data || [])
+              .filter((channel: any) => channel.type === 0)
+              .map((channel: any) => ({
+                ...channel,
+                accessible: true,
+              }));
+            
+            channelsData[server.id] = textChannels;
+          } else {
+            const errorData = await response.json().catch(() => ({}));
             channelsData[server.id] = [];
           }
+        } catch (err) {
+          channelsData[server.id] = [];
         }
-
-        setChannels(channelsData);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erreur inconnue');
-      } finally {
-        setIsLoading(false);
       }
-    };
 
-    fetchChannels();
-  }, [selectedServers, session]);
+      setChannels(channelsData);
+      setChannelsLoaded(true);
+      
+      // Vérifier si aucun canal n'a été récupéré
+      const totalChannels = Object.values(channelsData).flat().length;
+      if (totalChannels === 0) {
+        setError('Aucun canal de texte accessible trouvé. Vérifiez vos permissions sur le serveur.');
+      }
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur inconnue lors du chargement des canaux');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Plus de chargement automatique - l'utilisateur doit cliquer sur "Charger les canaux"
 
   const handleChannelToggle = (channelId: string) => {
     setSelectedChannels(prev => 
@@ -95,6 +117,12 @@ export function ChannelSelectionStep() {
     }
   };
 
+  // Fonction pour terminer et rediriger vers la surveillance
+  const handleFinish = () => {
+    console.log('🎯 ChannelSelection - Redirection vers la page de surveillance');
+    router.push('/surveillance');
+  };
+
   const isNextDisabled = selectedChannels.length === 0;
 
   return (
@@ -102,33 +130,139 @@ export function ChannelSelectionStep() {
       title="Sélection des Canaux"
       description="Choisissez les canaux spécifiques que vous souhaitez surveiller"
       icon="💬"
-      onNext={handleNext}
-      nextDisabled={isNextDisabled}
-      nextText="Continuer"
-    >
-      <div className="space-y-6">
-        {isLoading ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Récupération des canaux...</p>
-          </div>
-        ) : error ? (
-          <Card className="border-red-200 bg-red-50">
+      onNext={handleFinish}
+      nextDisabled={false}
+      nextText="Terminer et surveiller"
+        >
+          <div className="space-y-6">
+            {/* Bouton pour charger les canaux */}
+            {!channelsLoaded && !isLoading && (
+              <Card className="border-blue-200 bg-blue-50">
+                <CardContent className="pt-6">
+                  <div className="text-center py-6">
+                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                      Charger les canaux Discord
+                    </h3>
+                    <p className="text-blue-700 mb-4">
+                      Cliquez sur le bouton ci-dessous pour récupérer les canaux de vos serveurs Discord.
+                    </p>
+                    {selectedServers.length > 0 && (
+                      <div className="mb-4 p-3 bg-blue-100 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                          <strong>Serveur(s) sélectionné(s) :</strong> {selectedServers.map(s => s.name).join(', ')}
+                        </p>
+                      </div>
+                    )}
+                    <Button 
+                      onClick={loadChannels}
+                      className="bg-blue-600 hover:bg-blue-700"
+                      disabled={selectedServers.length === 0}
+                    >
+                      📡 Charger les canaux
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Loading state */}
+            {isLoading && (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Récupération des canaux...</p>
+                <p className="text-sm text-gray-500 mt-2">
+                  Connexion à l'API Discord en cours...
+                </p>
+              </div>
+            )}
+
+
+            {/* Messages d'erreur */}
+            {error && (
+              <Card className="border-red-200 bg-red-50">
+                <CardContent className="pt-6">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                      <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-red-900">Erreur</h4>
+                      <p className="text-red-700">{error}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Boutons pour réessayer ou se reconnecter */}
+                  <div className="flex justify-center space-x-4">
+                    <Button 
+                      onClick={loadChannels}
+                      variant="outline"
+                      className="border-red-300 text-red-700 hover:bg-red-100"
+                    >
+                      🔄 Réessayer
+                    </Button>
+                    {error?.includes('authentification') || error?.includes('token') ? (
+                      <Button 
+                        onClick={() => window.location.href = '/api/auth/signin'}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        🔐 Se reconnecter à Discord
+                      </Button>
+                    ) : null}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Bouton pour recharger si les canaux sont déjà chargés */}
+            {channelsLoaded && !isLoading && (
+              <div className="flex justify-center">
+                <Button 
+                  onClick={loadChannels}
+                  variant="outline"
+                  className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  🔄 Recharger les canaux
+                </Button>
+              </div>
+            )}
+
+            {/* Cas où aucun serveur n'est sélectionné */}
+            {selectedServers.length === 0 && (
+          <Card className="border-yellow-200 bg-yellow-50">
             <CardContent className="pt-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                  <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <div className="text-center py-6">
+                <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <div>
-                  <h4 className="font-medium text-red-900">Erreur</h4>
-                  <p className="text-red-700">{error}</p>
-                </div>
+                <h3 className="text-lg font-semibold text-yellow-900 mb-2">
+                  Aucun serveur sélectionné
+                </h3>
+                <p className="text-yellow-700 mb-4">
+                  Vous devez d'abord configurer et sélectionner des serveurs Discord dans l'étape précédente.
+                </p>
+                <Button 
+                  onClick={() => window.history.back()} 
+                  variant="outline"
+                  className="border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                >
+                  ← Retour à la configuration
+                </Button>
               </div>
             </CardContent>
           </Card>
-        ) : (
+        )}
+
+        {/* Affichage des canaux si ils sont chargés */}
+        {channelsLoaded && !error && selectedServers.length > 0 && (
           <div className="space-y-4">
             {/* Instructions */}
             <Card className="border-blue-200 bg-blue-50">
@@ -152,7 +286,7 @@ export function ChannelSelectionStep() {
 
             {/* Liste des canaux */}
             <div className="space-y-4">
-              {selectedServers.map((server) => {
+              {selectedServers.map((server: any) => {
                 const serverChannels = channels[server.id] || [];
                 const serverSelectedChannels = serverChannels.filter(channel => 
                   selectedChannels.includes(channel.id)
@@ -298,18 +432,6 @@ export function ChannelSelectionStep() {
           </div>
         )}
 
-        {/* Informations sur la surveillance */}
-        <Card className="border-gray-200 bg-gray-50">
-          <CardContent className="pt-6">
-            <h4 className="font-semibold text-gray-900 mb-2">
-              📝 Surveillance des canaux
-            </h4>
-            <p className="text-sm text-gray-700">
-              Les messages des canaux sélectionnés seront automatiquement convertis en notes Obsidian. 
-              Vous pourrez configurer les paramètres de synchronisation dans l'étape suivante.
-            </p>
-          </CardContent>
-        </Card>
       </div>
     </OnboardingLayout>
   );

@@ -42,10 +42,10 @@ export class DiscordBotManager extends EventEmitter {
       this.emit('error', error);
     });
 
-    this.client.on(Events.Disconnect, () => {
-      console.log('[DiscordBot] Bot déconnecté');
-      this.isConnected = false;
-      this.emit('disconnect');
+    this.client.on(Events.ClientReady, () => {
+      console.log('[DiscordBot] Bot connecté');
+      this.isConnected = true;
+      this.emit('connect');
     });
   }
 
@@ -151,7 +151,7 @@ export class DiscordBotManager extends EventEmitter {
     const messageData = {
       discordId: message.id,
       channelId: message.channelId,
-      channelName: message.channel.name,
+      channelName: (message.channel as any).name || 'Unknown',
       authorId: message.author.id,
       authorName: message.author.username,
       content: message.content,

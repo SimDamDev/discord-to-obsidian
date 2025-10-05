@@ -11,7 +11,8 @@ export interface OnboardingState {
   isCompleted: boolean;
   steps: {
     authAndConsent: OnboardingStep;
-    autoSetup: OnboardingStep;
+    versionChoice: OnboardingStep;
+    configuration: OnboardingStep;
     channelSelection: OnboardingStep;
     obsidianConfig: OnboardingStep;
     finalization: OnboardingStep;
@@ -84,6 +85,7 @@ export interface BotCreationResult {
 export interface OnboardingContextType {
   state: OnboardingState;
   configuration: UserConfiguration | null;
+  dispatch: (action: any) => void;
   updateStep: (stepId: string, data: any) => void;
   nextStep: () => void;
   previousStep: () => void;

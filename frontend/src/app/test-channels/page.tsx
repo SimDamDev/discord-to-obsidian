@@ -10,7 +10,7 @@ import { DiscordGuild } from '@/types/auth';
 const mockServer: DiscordGuild = {
   id: 'test-server-1',
   name: 'Serveur de Test',
-  icon: null,
+  icon: undefined,
   owner: true,
   permissions: '8',
   features: ['COMMUNITY', 'NEWS'],

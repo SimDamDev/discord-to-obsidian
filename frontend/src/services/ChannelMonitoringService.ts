@@ -160,6 +160,8 @@ class ChannelMonitoringService {
    * Charge l'état depuis le localStorage
    */
   private loadFromStorage(): void {
+    if (typeof window === 'undefined') return;
+    
     try {
       const stored = localStorage.getItem('channel-monitoring-state');
       if (stored) {

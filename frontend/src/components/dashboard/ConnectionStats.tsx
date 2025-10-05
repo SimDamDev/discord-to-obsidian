@@ -125,7 +125,7 @@ export function ConnectionStats() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => forceMode('realtime')}
+              onClick={() => forceMode('realtime', session)}
               disabled={stats.currentMode === 'realtime'}
             >
               Forcer temps réel
@@ -133,7 +133,7 @@ export function ConnectionStats() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => forceMode('polling')}
+              onClick={() => forceMode('polling', session)}
               disabled={stats.currentMode === 'polling'}
             >
               Forcer polling
@@ -145,7 +145,7 @@ export function ConnectionStats() {
   );
 }
 
-async function forceMode(mode: 'realtime' | 'polling') {
+async function forceMode(mode: 'realtime' | 'polling', session: any) {
   try {
     const endpoint = mode === 'realtime' ? '/api/connections/force-realtime' : '/api/connections/force-polling';
     const response = await fetch(endpoint, {

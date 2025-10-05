@@ -219,6 +219,7 @@ class OnboardingAnalytics {
    * Détecter le type d'appareil
    */
   private detectDeviceType(): 'mobile' | 'desktop' | 'tablet' {
+    if (typeof window === 'undefined') return 'desktop'; // Fallback pour SSR
     const width = window.innerWidth;
     if (width < 768) return 'mobile';
     if (width < 1024) return 'tablet';
@@ -229,6 +230,7 @@ class OnboardingAnalytics {
    * Détecter le navigateur
    */
   private detectBrowser(): string {
+    if (typeof navigator === 'undefined') return 'Unknown'; // Fallback pour SSR
     const userAgent = navigator.userAgent;
     if (userAgent.includes('Chrome')) return 'Chrome';
     if (userAgent.includes('Firefox')) return 'Firefox';
@@ -245,13 +247,13 @@ class OnboardingAnalytics {
     console.log(`[Analytics] ${eventName}:`, properties);
     
     // Exemple d'intégration avec Google Analytics
-    if (typeof gtag !== 'undefined') {
-      gtag('event', eventName, properties);
+    if (typeof (window as any).gtag !== 'undefined') {
+      (window as any).gtag('event', eventName, properties);
     }
     
     // Exemple d'intégration avec Mixpanel
-    if (typeof mixpanel !== 'undefined') {
-      mixpanel.track(eventName, properties);
+    if (typeof (window as any).mixpanel !== 'undefined') {
+      (window as any).mixpanel.track(eventName, properties);
     }
   }
 

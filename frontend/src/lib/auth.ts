@@ -1,6 +1,8 @@
-import NextAuth from 'next-auth';
+import NextAuth, { type NextAuthOptions } from 'next-auth';
 import DiscordProvider from 'next-auth/providers/discord';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import type { JWT } from 'next-auth/jwt';
+import type { Session, User } from 'next-auth';
 
 // Configuration des providers
 const providers = [];
@@ -50,11 +52,11 @@ if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET) {
   );
 }
 
-export const authOptions = {
+export const authOptions: NextAuthOptions = {
   providers,
   secret: process.env.NEXTAUTH_SECRET || 'dev-secret-key-change-in-production',
   callbacks: {
-    async jwt({ token, account, profile, user }) {
+    async jwt({ token, account, profile, user }: { token: JWT; account: any; profile: any; user: User }) {
       console.log('🔍 Debug JWT callback:', {
         hasAccount: !!account,
         provider: account?.provider,
@@ -83,7 +85,7 @@ export const authOptions = {
       }
       return token;
     },
-    async session({ session, token }) {
+    async session({ session, token }: { session: Session; token: JWT }) {
       console.log('🔍 Debug session callback:', {
         hasToken: !!token,
         hasDiscordId: !!token?.discordId,

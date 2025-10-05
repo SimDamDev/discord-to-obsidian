@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: discord_obsidian
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: discord_obsidian_password_123
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -35,7 +35,7 @@ services:
       dockerfile: Dockerfile
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@postgres:5432/discord_obsidian
+      DATABASE_URL: postgresql://postgres:discord_obsidian_password_123@postgres:5432/discord_obsidian
       REDIS_URL: redis://redis:6379
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
@@ -59,9 +59,14 @@ services:
       NEXT_PUBLIC_API_URL: http://localhost:3001
       NEXTAUTH_URL: ${NEXTAUTH_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      DATABASE_URL: postgresql://postgres:discord_obsidian_password_123@postgres:5432/discord_obsidian
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
     ports:
       - "3000:3000"
     depends_on:
+      - postgres
       - api
 
   worker:
@@ -69,7 +74,7 @@ services:
       context: ./worker
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@postgres:5432/discord_obsidian
+      DATABASE_URL: postgresql://postgres:discord_obsidian_password_123@postgres:5432/discord_obsidian
       REDIS_URL: redis://redis:6379
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
     depends_on:

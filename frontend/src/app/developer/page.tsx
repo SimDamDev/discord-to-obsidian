@@ -13,7 +13,7 @@ export default function DeveloperPage() {
     totalMessages: 0,
   });
 
-  const [recentActivity, setRecentActivity] = useState([]);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
   useEffect(() => {
     // Simuler le chargement des statistiques

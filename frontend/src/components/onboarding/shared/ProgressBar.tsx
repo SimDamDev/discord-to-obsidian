@@ -5,7 +5,8 @@ import { useOnboarding } from '../OnboardingProvider';
 
 const steps = [
   { id: 'authAndConsent', title: 'Connexion', icon: '🔐' },
-  { id: 'autoSetup', title: 'Auto-Setup', icon: '⚡' },
+  { id: 'versionChoice', title: 'Version', icon: '⚖️' },
+  { id: 'configuration', title: 'Config', icon: '⚙️' },
   { id: 'channelSelection', title: 'Canaux', icon: '💬' },
   { id: 'obsidianConfig', title: 'Obsidian', icon: '📝' },
   { id: 'finalization', title: 'Activation', icon: '🚀' },

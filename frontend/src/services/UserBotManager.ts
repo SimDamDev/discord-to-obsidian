@@ -91,9 +91,7 @@ export class UserBotManager {
       
       return {
         bot: userBot,
-        inviteLink,
-        success: true,
-        message: 'Bot principal configuré. Invitez-le sur vos serveurs pour commencer.'
+        inviteLink
       };
     } catch (error) {
       console.error('Erreur lors de la configuration du bot principal:', error);
@@ -215,13 +213,13 @@ export class UserBotManager {
         return [];
       }
 
-      const authorizedServers = user.authorizedServers.map(server => ({
+      const authorizedServers: AuthorizedServer[] = user.authorizedServers.map(server => ({
         id: server.id,
         userId: server.userId,
         serverId: server.serverId,
         serverName: server.serverName,
         botId: server.botId,
-        permissions: server.permissions,
+        permissions: JSON.parse(server.permissions),
         isActive: server.isActive,
         authorizedAt: server.authorizedAt,
       }));
@@ -282,7 +280,7 @@ export class UserBotManager {
         serverId: authorizedServer.serverId,
         serverName: authorizedServer.serverName,
         botId: authorizedServer.botId,
-        permissions: authorizedServer.permissions,
+        permissions: JSON.parse(authorizedServer.permissions),
         isActive: authorizedServer.isActive,
         authorizedAt: authorizedServer.authorizedAt,
       };

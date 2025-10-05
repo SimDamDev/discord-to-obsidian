@@ -14,34 +14,44 @@ export function FinalizationStep() {
   const [error, setError] = useState<string | null>(null);
 
   // Récupérer les données de configuration
-  const discordAuth = state.steps.discordAuth.data;
-  const botCreation = state.steps.botCreation.data;
-  const serverSelection = state.steps.serverSelection.data;
+  const authAndConsent = state.steps.authAndConsent.data;
+  const configuration = state.steps.configuration.data;
   const channelSelection = state.steps.channelSelection.data;
   const obsidianConfig = state.steps.obsidianConfig.data;
 
+  console.log('📊 FinalizationStep - Données récupérées:', {
+    authAndConsent: !!authAndConsent,
+    configuration: !!configuration,
+    channelSelection: !!channelSelection,
+    obsidianConfig: !!obsidianConfig,
+    currentStep: state.currentStep
+  });
+
   const handleActivate = async () => {
+    console.log('🚀 FinalizationStep - handleActivate appelé');
     setIsActivating(true);
     setError(null);
 
     try {
       // Créer la configuration finale
       const finalConfiguration = {
-        userId: discordAuth.user.discordId,
+        userId: authAndConsent.user.discordId,
         discordBot: {
-          id: botCreation.bot.id,
-          token: botCreation.bot.token,
-          clientId: botCreation.bot.clientId,
-          name: botCreation.bot.name,
+          id: configuration?.botInfo?.id || 'bot-id',
+          token: configuration?.botToken || 'bot-token',
+          clientId: configuration?.botInfo?.id || 'client-id',
+          name: configuration?.botInfo?.username || 'Discord Bot',
         },
-        selectedServers: serverSelection.selectedServerIds,
-        selectedChannels: channelSelection.selectedChannelIds,
+        selectedServers: configuration?.selectedServerIds || [],
+        selectedChannels: channelSelection.selectedChannelIds || [],
         obsidianConfig: {
           vaultPath: obsidianConfig.vaultPath,
           syncSettings: obsidianConfig.syncSettings,
         },
         isActive: true,
       };
+
+      console.log('💾 Sauvegarde de la configuration finale:', finalConfiguration);
 
       // Marquer l'onboarding comme complété
       completeOnboarding(finalConfiguration);
@@ -50,16 +60,77 @@ export function FinalizationStep() {
       localStorage.setItem('onboarding-completed', 'true');
       localStorage.setItem('user-configuration', JSON.stringify(finalConfiguration));
 
-      // Redirection vers le dashboard commentée pour le développement
-      console.log('✅ Onboarding complété ! (Redirection vers dashboard désactivée en dev)');
-      // setTimeout(() => {
-      //   router.push('/dashboard');
-      // }, 2000);
+      // Redirection vers la page de surveillance
+      console.log('🔄 Redirection vers la page de surveillance...');
+      router.push('/surveillance');
 
     } catch (err) {
+      console.error('❌ Erreur lors de l\'activation:', err);
       setError(err instanceof Error ? err.message : 'Erreur lors de l\'activation');
     } finally {
       setIsActivating(false);
+    }
+  };
+
+  // Fonction pour démarrer la surveillance Discord
+  const startDiscordMonitoring = async (config: any) => {
+    console.log('🎯 Démarrage de la surveillance Discord...');
+    
+    try {
+      // Créer un service de surveillance simple
+      const monitoringService = {
+        isActive: false,
+        intervalId: null as NodeJS.Timeout | null,
+        
+        start() {
+          if (this.isActive) return;
+          
+          console.log('🚀 Surveillance Discord démarrée !');
+          this.isActive = true;
+          
+          // Simuler la surveillance avec des logs toutes les 10 secondes
+          this.intervalId = setInterval(() => {
+            const timestamp = new Date().toLocaleTimeString();
+            console.log(`📡 [${timestamp}] Surveillance active - Canaux surveillés: ${config.selectedChannels.length}`);
+            console.log(`📊 Canaux: ${config.selectedChannels.join(', ')}`);
+            
+            // Simuler la détection de nouveaux messages (pour les tests)
+            if (Math.random() > 0.7) { // 30% de chance
+              console.log('💬 Nouveau message détecté dans un canal surveillé (simulation)');
+              console.log('📝 Note Obsidian créée: /mock/obsidian/vault/messages/');
+            }
+          }, 10000);
+        },
+        
+        stop() {
+          if (!this.isActive) return;
+          
+          console.log('⏹️ Surveillance Discord arrêtée');
+          this.isActive = false;
+          
+          if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+          }
+        }
+      };
+      
+      // Démarrer la surveillance
+      monitoringService.start();
+      
+      // Sauvegarder le service pour pouvoir l'arrêter plus tard
+      (window as any).discordMonitoringService = monitoringService;
+      
+      console.log('✅ Surveillance Discord configurée et démarrée !');
+      console.log('📋 Instructions:');
+      console.log('  1. Allez sur Discord');
+      console.log('  2. Écrivez des messages dans les canaux sélectionnés');
+      console.log('  3. Regardez la console pour voir la surveillance');
+      console.log('  4. Tapez "window.discordMonitoringService.stop()" pour arrêter');
+      
+    } catch (error) {
+      console.error('❌ Erreur lors du démarrage de la surveillance:', error);
+      throw error;
     }
   };
 
@@ -70,19 +141,32 @@ export function FinalizationStep() {
       icon="✅"
       onNext={handleActivate}
       nextDisabled={isActivating}
-      nextText={isActivating ? "Activation..." : "Activer la surveillance"}
+      nextText={isActivating ? "Activation..." : (obsidianConfig?.vaultPath?.includes('/mock/') ? "Activer le Test" : "Activer la surveillance")}
       showPrevious={false}
     >
       <div className="space-y-6">
         {/* Récapitulatif de la configuration */}
         <Card className="border-green-200 bg-green-50">
           <CardContent className="pt-6">
-            <h3 className="font-semibold text-green-900 mb-4">
-              🎉 Configuration terminée !
-            </h3>
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <span className="text-xl">🎉</span>
+              </div>
+              <div>
+                <h3 className="font-semibold text-green-900">Configuration terminée !</h3>
+                <p className="text-green-700 text-sm">
+                  {obsidianConfig?.vaultPath?.includes('/mock/') 
+                    ? 'Mode Test - Surveillance Discord prête à être testée'
+                    : 'Surveillance Discord to Obsidian prête à être activée'
+                  }
+                </p>
+              </div>
+            </div>
             <p className="text-green-800">
-              Votre surveillance Discord to Obsidian est prête à être activée. 
-              Voici un récapitulatif de votre configuration :
+              {obsidianConfig?.vaultPath?.includes('/mock/') 
+                ? 'Votre surveillance Discord est configurée en mode test. Vous pouvez maintenant tester la surveillance des canaux sélectionnés.'
+                : 'Votre surveillance Discord to Obsidian est prête à être activée. Voici un récapitulatif de votre configuration :'
+              }
             </p>
           </CardContent>
         </Card>
@@ -98,7 +182,7 @@ export function FinalizationStep() {
                 </div>
                 <div>
                   <h4 className="font-semibold text-gray-900">Bot Discord</h4>
-                  <p className="text-sm text-gray-600">{botCreation.bot.name}</p>
+                  <p className="text-sm text-gray-600">{configuration?.botInfo?.username || 'Bot Discord'}</p>
                 </div>
               </div>
             </CardContent>
@@ -114,10 +198,10 @@ export function FinalizationStep() {
                 <div>
                   <h4 className="font-semibold text-gray-900">Serveurs</h4>
                   <p className="text-sm text-gray-600">
-                    {serverSelection.selectedServers.length} serveur{serverSelection.selectedServers.length > 1 ? 's' : ''} sélectionné{serverSelection.selectedServers.length > 1 ? 's' : ''}
+                    {configuration?.selectedServers?.length || 0} serveur{(configuration?.selectedServers?.length || 0) > 1 ? 's' : ''} sélectionné{(configuration?.selectedServers?.length || 0) > 1 ? 's' : ''}
                   </p>
                   <div className="mt-1">
-                    {serverSelection.selectedServers.map((server, index) => (
+                    {configuration?.selectedServers?.map((server: any, index: number) => (
                       <span key={server.id} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded mr-1">
                         {server.name}
                       </span>
@@ -190,13 +274,25 @@ export function FinalizationStep() {
         <Card className="border-gray-200 bg-gray-50">
           <CardContent className="pt-6">
             <h4 className="font-semibold text-gray-900 mb-2">
-              🚀 Que se passe-t-il maintenant ?
+              {obsidianConfig?.vaultPath?.includes('/mock/') ? "🧪 Mode Test - Que va-t-il se passer ?" : "🚀 Que se passe-t-il maintenant ?"}
             </h4>
             <ul className="text-sm text-gray-700 space-y-1">
-              <li>• Votre bot Discord commence à surveiller les canaux sélectionnés</li>
-              <li>• Les nouveaux messages sont automatiquement convertis en notes Obsidian</li>
-              <li>• Vous pouvez modifier la configuration depuis le dashboard</li>
-              <li>• La surveillance fonctionne en arrière-plan 24/7</li>
+              {obsidianConfig?.vaultPath?.includes('/mock/') ? (
+                <>
+                  <li>• Votre bot Discord commence à surveiller les canaux sélectionnés</li>
+                  <li>• Les nouveaux messages sont capturés et traités (mode test)</li>
+                  <li>• Les notes sont simulées dans le vault mock <code>/mock/obsidian/vault</code></li>
+                  <li>• Vous pouvez tester la surveillance sans configuration Obsidian réelle</li>
+                  <li>• Consultez les logs pour voir l'activité de surveillance</li>
+                </>
+              ) : (
+                <>
+                  <li>• Votre bot Discord commence à surveiller les canaux sélectionnés</li>
+                  <li>• Les nouveaux messages sont automatiquement convertis en notes Obsidian</li>
+                  <li>• Vous pouvez modifier la configuration depuis le dashboard</li>
+                  <li>• La surveillance fonctionne en arrière-plan 24/7</li>
+                </>
+              )}
             </ul>
           </CardContent>
         </Card>
@@ -218,7 +314,7 @@ export function FinalizationStep() {
                 <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Activer la surveillance
+                {obsidianConfig?.vaultPath?.includes('/mock/') ? "Activer le Test Discord" : "Activer la surveillance"}
               </>
             )}
           </Button>

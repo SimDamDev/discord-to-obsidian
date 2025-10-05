@@ -44,7 +44,7 @@ export function StepNavigation({
   };
 
   const isFirstStep = state.currentStep === 0;
-  const isLastStep = state.currentStep === 4; // 5 étapes (0-4)
+  const isLastStep = state.currentStep === 5; // 6 étapes (0-5)
 
   return (
     <div className="flex flex-col md:flex-row justify-between items-center mt-6 md:mt-8 pt-4 md:pt-6 border-t border-gray-200 space-y-4 md:space-y-0">
@@ -68,7 +68,7 @@ export function StepNavigation({
       {/* Indicateur de progression */}
       <div className="text-center order-first md:order-none">
         <span className="text-sm text-gray-500">
-          Étape {state.currentStep + 1} sur 5
+          Étape {state.currentStep + 1} sur 6
         </span>
       </div>
 

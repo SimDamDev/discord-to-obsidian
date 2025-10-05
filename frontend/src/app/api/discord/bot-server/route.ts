@@ -52,12 +52,22 @@ export async function GET(request: NextRequest) {
 
           // Si on peut récupérer les infos du bot, c'est qu'il est membre
           console.log(`✅ Bot présent sur le serveur: ${server.name}`);
-          return NextResponse.json({ 
+          
+          // FORCER le retour des données
+          const responseData = { 
             success: true,
             server: server,
             botPresent: true,
             botId: botId
-          });
+          };
+          
+          console.log('🎯 API bot-server retourne:', responseData);
+          console.log('🚀 API bot-server - Envoi de la réponse...');
+          
+          // Retourner immédiatement
+          const response = NextResponse.json(responseData);
+          console.log('✅ API bot-server - Réponse envoyée avec succès');
+          return response;
 
         } catch (error) {
           if (axios.isAxiosError(error) && error.response?.status === 404) {
@@ -74,6 +84,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Aucun serveur avec bot trouvé
+      console.log('❌ Aucun serveur avec bot trouvé après test de tous les serveurs');
       return NextResponse.json({ 
         success: false,
         message: 'Aucun serveur avec bot trouvé',

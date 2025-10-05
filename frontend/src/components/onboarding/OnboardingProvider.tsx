@@ -16,10 +16,16 @@ const initialState: OnboardingState = {
       description: 'Connectez-vous avec Discord et acceptez nos conditions',
       completed: false,
     },
-    autoSetup: {
-      id: 'autoSetup',
-      title: 'Configuration Automatique',
-      description: 'Configuration automatique du bot et détection des serveurs',
+    versionChoice: {
+      id: 'versionChoice',
+      title: 'Choix de Version',
+      description: 'Choisissez entre version simplifiée ou confidentialité max',
+      completed: false,
+    },
+    configuration: {
+      id: 'configuration',
+      title: 'Configuration',
+      description: 'Configuration du bot et sélection des serveurs',
       completed: false,
     },
     channelSelection: {
@@ -71,9 +77,11 @@ function onboardingReducer(state: OnboardingState, action: OnboardingAction): On
       };
 
     case 'NEXT_STEP':
+      const newStep = Math.min(state.currentStep + 1, 5);
+      console.log('🔄 Reducer NEXT_STEP - étape actuelle:', state.currentStep, '→ nouvelle étape:', newStep);
       return {
         ...state,
-        currentStep: Math.min(state.currentStep + 1, 4), // 5 étapes (0-4)
+        currentStep: newStep, // 6 étapes (0-5)
       };
 
     case 'PREVIOUS_STEP':
@@ -137,6 +145,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
   // Charger l'état depuis le localStorage
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const savedState = localStorage.getItem('onboarding-state');
     if (savedState) {
       try {
@@ -144,31 +153,67 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         // Pour le développement, toujours commencer à l'étape 1
         console.log('🔄 Reset onboarding pour commencer à l\'étape 1');
         dispatch({ type: 'RESET_ONBOARDING' });
-        localStorage.removeItem('onboarding-state');
+        if (typeof window !== 'undefined') {
+      localStorage.removeItem('onboarding-state');
+    }
       } catch (error) {
         console.error('Erreur lors du chargement de l\'état d\'onboarding:', error);
       }
     }
   }, []);
 
+  // Fonction pour sauvegarder en base de données
+  const saveToDatabase = async (stepName: string, stepData: any) => {
+    try {
+      const response = await fetch('/api/onboarding/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          stepName,
+          stepData
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erreur HTTP: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log(`💾 Données sauvegardées en base pour l'étape ${stepName}:`, result);
+    } catch (error) {
+      console.error(`❌ Erreur lors de la sauvegarde de l'étape ${stepName}:`, error);
+    }
+  };
+
   // Sauvegarder l'état dans le localStorage
   useEffect(() => {
-    localStorage.setItem('onboarding-state', JSON.stringify(state));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('onboarding-state', JSON.stringify(state));
+    }
   }, [state]);
 
-  const updateStep = (stepId: string, data: any) => {
+  const updateStep = async (stepId: string, data: any) => {
     dispatch({ type: 'UPDATE_STEP', stepId, data });
+    
+    // Sauvegarder automatiquement en base de données
+    await saveToDatabase(stepId, data);
   };
 
   const nextStep = () => {
+    console.log('🔄 OnboardingProvider - nextStep() appelé, étape actuelle:', state.currentStep);
+    
     // Terminer le tracking de l'étape actuelle
     onboardingAnalytics.completeStep(state.currentStep, true);
     
     // Passer à l'étape suivante
     dispatch({ type: 'NEXT_STEP' });
     
+    console.log('🔄 OnboardingProvider - dispatch NEXT_STEP envoyé, prochaine étape:', state.currentStep + 1);
+    
     // Démarrer le tracking de la nouvelle étape
-    const stepIds = ['authAndConsent', 'autoSetup', 'channelSelection', 'obsidianConfig', 'finalization'];
+    const stepIds = ['authAndConsent', 'versionChoice', 'configuration', 'channelSelection', 'obsidianConfig', 'finalization'];
     const nextStepId = stepIds[state.currentStep + 1];
     if (nextStepId) {
       onboardingAnalytics.startStep(state.currentStep + 1, nextStepId);
@@ -183,9 +228,12 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     dispatch({ type: 'GO_TO_STEP', stepIndex });
   };
 
-  const completeOnboarding = (config: UserConfiguration) => {
+  const completeOnboarding = async (config: UserConfiguration) => {
     setConfiguration(config);
     dispatch({ type: 'COMPLETE_ONBOARDING', config });
+    
+    // Sauvegarder la configuration finale en base de données
+    await saveToDatabase('finalConfiguration', config);
     
     // Terminer le tracking de l'onboarding
     const completionTime = Date.now() - (onboardingAnalytics as any).stepStartTime[0];
@@ -193,7 +241,11 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     abTestingService.markCompleted(completionTime);
     
     // Nettoyer le localStorage
-    localStorage.removeItem('onboarding-state');
+    if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined') {
+      localStorage.removeItem('onboarding-state');
+    }
+    }
     
     console.log('🎉 Onboarding complété avec succès!');
     console.log('📊 Métriques envoyées');
@@ -202,12 +254,15 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const resetOnboarding = () => {
     setConfiguration(null);
     dispatch({ type: 'RESET_ONBOARDING' });
-    localStorage.removeItem('onboarding-state');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('onboarding-state');
+    }
   };
 
   const contextValue: OnboardingContextType = {
     state,
     configuration,
+    dispatch,
     updateStep,
     nextStep,
     previousStep,

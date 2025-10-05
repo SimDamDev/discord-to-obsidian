@@ -195,11 +195,11 @@ export default function DiscordStatus() {
                 <div key={index} className="flex justify-between items-center text-xs p-2 bg-gray-50 rounded">
                   <span className="truncate flex-1 mr-2">{entry.key}</span>
                   <div className="flex gap-2">
-                    <Badge variant={entry.isExpired ? "destructive" : "secondary"} size="sm">
+                    <Badge variant={entry.isExpired ? "destructive" : "secondary"}>
                       {formatTime(entry.age)}
                     </Badge>
                     {!entry.isExpired && (
-                      <Badge variant="outline" size="sm">
+                      <Badge variant="outline">
                         {formatTime(entry.expiresIn)}
                       </Badge>
                     )}
